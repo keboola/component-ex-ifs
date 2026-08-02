@@ -43,6 +43,12 @@ def test_functional(test_name):
     tester.run()
 
 
+# NOTE: These functional cases (11_incremental_init, 12_incremental_advance) prove the
+# *incoming* state is honored (the seeded watermark shapes the recorded $filter), but they do
+# NOT assert the *outgoing* watermark written to out/state.json — the datadir harness structurally
+# diffs only out/tables + out/files, never out/state.json. The outgoing-watermark advance is
+# guarded instead by the unit test
+# tests/unit/test_component_run.py::test_incremental_builds_gt_filter_and_advances_state.
 @pytest.mark.parametrize("test_name,seed_state", sorted(STATEFUL_SEED.items()))
 def test_functional_stateful(test_name, seed_state):
     """Replay a stateful VCR case with a seeded input state (incremental watermark)."""
