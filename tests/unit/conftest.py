@@ -64,6 +64,26 @@ class StubSession:
         return self._get_queue.popleft()
 
 
+class StubAuth:
+    """Stand-in for ``IfsAuthClient`` for OData client tests."""
+
+    def __init__(self, token: str = "tok-1"):
+        self._token = token
+        self.invalidations = 0
+
+    def get_token(self) -> str:
+        return self._token
+
+    def invalidate(self) -> None:
+        self.invalidations += 1
+        self._token = f"{self._token}-refreshed"
+
+
 @pytest.fixture
 def stub_session() -> StubSession:
     return StubSession()
+
+
+@pytest.fixture
+def auth_stub() -> StubAuth:
+    return StubAuth()
