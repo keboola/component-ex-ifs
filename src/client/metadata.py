@@ -34,6 +34,11 @@ _EDM_TO_BASE: dict[str, str] = {
 # Name substrings that hint a column is a change/entry timestamp (lower-cased).
 _INCREMENTAL_NAME_HINTS = ("changed", "modified", "updated", "date", "time", "stamp", "created")
 
+# IFS meta-fields that ride along on data rows but are not real data columns.
+# Single source of truth (ordered) shared by the OData client (stripping) and
+# the schema builder (rendered as trailing STRING columns when kept).
+META_FIELDS: tuple[str, ...] = ("@odata.etag", "luname", "keyref", "Objgrants")
+
 
 @dataclass
 class PropertyMeta:

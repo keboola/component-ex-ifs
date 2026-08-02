@@ -13,9 +13,10 @@ import requests
 from keboola.component.exceptions import UserException
 
 from client.auth import IfsAuthClient
+from client.metadata import META_FIELDS
 
 # IFS meta-fields that ride along on data rows but are not real data columns.
-_META_FIELDS = frozenset({"@odata.etag", "luname", "keyref", "Objgrants"})
+_META_FIELDS = frozenset(META_FIELDS)
 _MAX_PAGES = 100_000
 _BACKOFF_BASE_S = 1.0
 _BACKOFF_CAP_S = 60.0

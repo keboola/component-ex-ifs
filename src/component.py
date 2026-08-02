@@ -275,8 +275,10 @@ class Component(ComponentBase):
         self, row: RowConfiguration, meta: EntityMeta, query_filter: str | None
     ) -> tuple[TableDefinition, object | None, int]:
         """Stream rows to CSV, tracking the max incremental_field value."""
-        selected = row.columns or None
-        schema: OrderedDict[str, ColumnDefinition] = build_column_schema(meta, selected, primary_key=row.primary_key)
+        selected = self._effective_select(row)
+        schema: OrderedDict[str, ColumnDefinition] = build_column_schema(
+            meta, selected, primary_key=row.primary_key, keep_meta_fields=row.keep_meta_fields
+        )
         table = self.create_out_table_definition(
             name=f"{row.entity_set}.csv",
             schema=schema,
@@ -302,6 +304,29 @@ class Component(ComponentBase):
                 count += 1
                 watermark = self._advance_watermark(watermark, record, watermark_field)
         return table, watermark, count
+
+    @staticmethod
+    def _effective_select(row: RowConfiguration) -> list[str] | None:
+        """Compute the effective ``$select`` sent to extraction.
+
+        An empty ``columns`` means "all columns" (``None``). When the user
+        restricts columns for an incremental fetch but omits the incremental
+        field, the response rows would never carry it, so ``_advance_watermark``
+        would keep seeing ``None`` and the watermark would never advance
+        (re-fetching the same window forever). Force-include the incremental
+        field in the effective select (dedupe, order-preserving) without
+        mutating the user's stored config.
+        """
+        columns = row.columns
+        if not columns:
+            return None
+        if (
+            row.fetch_type == FetchType.incremental_fetch
+            and row.incremental_field
+            and row.incremental_field not in columns
+        ):
+            return [*columns, row.incremental_field]
+        return list(columns)
 
     @staticmethod
     def _advance_watermark(current: object | None, record: dict, field: str | None) -> object | None:

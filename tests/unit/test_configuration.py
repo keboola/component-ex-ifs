@@ -91,6 +91,42 @@ def test_row_incremental_fetch_without_field_raises():
         )
 
 
+def test_row_incremental_fetch_with_full_load_raises():
+    """Delta fetch + full replace would overwrite the table with only the latest delta."""
+    with pytest.raises(UserException):
+        RowConfiguration(
+            service="S",
+            entity_set="E",
+            fetch_type=FetchType.incremental_fetch,
+            incremental_field="EntryDate",
+            load_type=LoadType.full_load,
+        )
+
+
+def test_row_incremental_fetch_with_incremental_load_ok():
+    """The safe accumulating combo (incremental fetch + incremental load) is allowed."""
+    row = RowConfiguration(
+        service="S",
+        entity_set="E",
+        fetch_type=FetchType.incremental_fetch,
+        incremental_field="EntryDate",
+        load_type=LoadType.incremental_load,
+        primary_key=["Company"],
+    )
+    assert row.incremental is True
+
+
+def test_row_full_fetch_with_full_load_ok():
+    """Full fetch + full load is a valid, non-lossy combination."""
+    row = RowConfiguration(
+        service="S",
+        entity_set="E",
+        fetch_type=FetchType.full_fetch,
+        load_type=LoadType.full_load,
+    )
+    assert row.incremental is False
+
+
 def test_extra_fields_ignored():
     cfg = Configuration(
         tenant_id="t", realm="r", client_id="C", debug=True, unknown_field="x", **{"#client_secret": "s"}

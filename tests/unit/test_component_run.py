@@ -130,6 +130,57 @@ def test_incremental_builds_gt_filter_and_advances_state(tmp_path, monkeypatch):
     assert manifest.get("incremental") is True
 
 
+def test_incremental_fetch_forces_incremental_field_into_select(tmp_path, monkeypatch):
+    """User selects columns but omits the incremental field -> it is forced into $select."""
+    monkeypatch.setenv("KBC_DATA_TYPE_SUPPORT", "authoritative")
+    params = {
+        **BASE_PARAMS,
+        "fetch_type": "incremental_fetch",
+        "incremental_field": "EntryDate",
+        "load_type": "incremental_load",
+        "columns": ["Company", "VoucherNo", "Amount"],  # EntryDate deliberately omitted
+    }
+    datadir = _make_datadir(tmp_path, params)
+    monkeypatch.setenv("KBC_DATADIR", str(datadir))
+    captured: dict = {}
+    _patch_client(monkeypatch, captured=captured)
+
+    from component import Component
+
+    Component().run()
+
+    select = captured.get("select")
+    assert select is not None
+    assert "EntryDate" in select  # forced in so the watermark can advance
+    assert select == ["Company", "VoucherNo", "Amount", "EntryDate"]  # appended, order preserved
+
+    # And the watermark actually advances because the field now reaches the rows.
+    state = json.loads((datadir / "out" / "state.json").read_text())
+    assert state["last_value"] == "2025-03-31"
+
+
+def test_incremental_field_not_duplicated_when_already_selected(tmp_path, monkeypatch):
+    """If the incremental field is already in columns, the select is unchanged."""
+    monkeypatch.setenv("KBC_DATA_TYPE_SUPPORT", "authoritative")
+    params = {
+        **BASE_PARAMS,
+        "fetch_type": "incremental_fetch",
+        "incremental_field": "EntryDate",
+        "load_type": "incremental_load",
+        "columns": ["Company", "VoucherNo", "EntryDate", "Amount"],
+    }
+    datadir = _make_datadir(tmp_path, params)
+    monkeypatch.setenv("KBC_DATADIR", str(datadir))
+    captured: dict = {}
+    _patch_client(monkeypatch, captured=captured)
+
+    from component import Component
+
+    Component().run()
+
+    assert captured.get("select") == ["Company", "VoucherNo", "EntryDate", "Amount"]  # no duplicate append
+
+
 def test_empty_state_incremental_has_no_filter(tmp_path, monkeypatch):
     monkeypatch.setenv("KBC_DATA_TYPE_SUPPORT", "authoritative")
     params = {
@@ -148,6 +199,31 @@ def test_empty_state_incremental_has_no_filter(tmp_path, monkeypatch):
     Component().run()
 
     assert captured.get("filter") is None  # first run -> full fetch, no watermark clause
+
+
+def test_keep_meta_fields_true_writes_meta_columns(tmp_path, monkeypatch):
+    """keep_meta_fields=true surfaces the IFS meta-fields as output columns with values."""
+    monkeypatch.setenv("KBC_DATA_TYPE_SUPPORT", "authoritative")
+    datadir = _make_datadir(
+        tmp_path, {**BASE_PARAMS, "load_type": "full_load", "fetch_type": "full_fetch", "keep_meta_fields": True}
+    )
+    monkeypatch.setenv("KBC_DATADIR", str(datadir))
+    _patch_client(monkeypatch)
+
+    from component import Component
+
+    Component().run()
+
+    out = datadir / "out" / "tables" / "VoucherRowSet.csv"
+    header, records = _read_csv(out)
+    for name in ("@odata.etag", "luname", "keyref", "Objgrants"):
+        assert name in header  # meta-fields now materialise as columns
+    assert records[0]["@odata.etag"] == "etag-1"  # value from the source row is retained
+    assert records[0]["luname"] == "VoucherRow"
+
+    manifest = json.loads((out.parent / "VoucherRowSet.csv.manifest").read_text())
+    meta_cols = {c["name"] for c in manifest["schema"] if c["name"].startswith("@odata.") or c["name"] == "luname"}
+    assert {"@odata.etag", "luname"} <= meta_cols
 
 
 def test_forbidden_from_client_raises_userexception(tmp_path, monkeypatch):

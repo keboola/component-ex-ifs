@@ -53,6 +53,54 @@ def test_build_column_schema_decimal_precision_scale_length():
     assert _base(schema["Amount"]).length == "20,2"
 
 
+def test_decimal_length_clamped_to_snowflake_max():
+    """IFS nominal (130, 65) exceeds Snowflake NUMBER(38, <=37); it must clamp."""
+    entity = EntityMeta(
+        entity_set="X",
+        entity_type="X",
+        properties=[PropertyMeta("Amount", "Edm.Decimal", nullable=True, precision=130, scale=65)],
+        keys=[],
+    )
+    schema = build_column_schema(entity, None)
+    assert _base(schema["Amount"]).length == "38,10"
+
+
+def test_decimal_length_valid_precision_scale_passes_through():
+    """An already-valid (20, 4) is emitted verbatim (no clamping)."""
+    entity = EntityMeta(
+        entity_set="X",
+        entity_type="X",
+        properties=[PropertyMeta("Amount", "Edm.Decimal", nullable=True, precision=20, scale=4)],
+        keys=[],
+    )
+    schema = build_column_schema(entity, None)
+    assert _base(schema["Amount"]).length == "20,4"
+
+
+def test_keep_meta_fields_appends_trailing_string_columns():
+    schema = build_column_schema(_entity(), None, keep_meta_fields=True)
+    # Real data columns first, in EDMX order, then the meta-fields as trailing STRING columns.
+    assert list(schema.keys()) == [
+        "Company",
+        "VoucherNo",
+        "Amount",
+        "RowNo",
+        "EntryDate",
+        "@odata.etag",
+        "luname",
+        "keyref",
+        "Objgrants",
+    ]
+    assert _base(schema["@odata.etag"]).dtype == SupportedDataTypes.STRING
+    assert schema["Objgrants"].nullable is True
+
+
+def test_meta_fields_absent_by_default():
+    schema = build_column_schema(_entity(), None)
+    for name in ("@odata.etag", "luname", "keyref", "Objgrants"):
+        assert name not in schema
+
+
 def test_format_filter_literal_types():
     assert format_filter_literal("Edm.Date", "2025-01-01") == "2025-01-01"
     assert format_filter_literal("Edm.DateTimeOffset", "2025-01-01T00:00:00Z") == "2025-01-01T00:00:00Z"

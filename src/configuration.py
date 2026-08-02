@@ -99,4 +99,14 @@ class RowConfiguration(BaseModel):
             raise ValueError("primary_key is required when load_type is incremental_load")
         if self.fetch_type == FetchType.incremental_fetch and not self.incremental_field:
             raise ValueError("incremental_field is required when fetch_type is incremental_fetch")
+        if self.fetch_type == FetchType.incremental_fetch and self.load_type == LoadType.full_load:
+            # Incremental fetch narrows the server-side query to rows changed since
+            # the last watermark, while full load overwrites the whole table each
+            # run. Combined, every run replaces the table with only the latest
+            # delta — silent data loss. Require incremental load to accumulate.
+            raise ValueError(
+                "incremental_fetch cannot be combined with full_load: each run would overwrite the "
+                "table with only the latest delta (data loss). Use incremental_load to accumulate "
+                "deltas, or full_fetch to always reload the full table."
+            )
         return self
