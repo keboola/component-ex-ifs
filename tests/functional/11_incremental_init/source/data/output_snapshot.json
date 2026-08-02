@@ -1,0 +1,29 @@
+{
+  "files": {},
+  "hash_algorithm": "sha256",
+  "tables": {
+    "VoucherRowSet.csv": {
+      "columns": [
+        "Company",
+        "VoucherType",
+        "AccountingYear",
+        "VoucherNo",
+        "RowNo",
+        "VoucherDate",
+        "Account",
+        "Amount",
+        "CurrencyCode"
+      ],
+      "hash": "sha256:20a1e042058ef5cc985be0b530639fec9a5df0ebb8561c0e61ea20a461787536",
+      "row_count": 143,
+      "size_bytes": 11310
+    },
+    "VoucherRowSet.csv.manifest": {
+      "columns": null,
+      "hash": "sha256:d63f2a8b4e09501e4a5241a20df9e1b719f6121f5fdf34323112a05ff0ecc175",
+      "row_count": null,
+      "size_bytes": 1748
+    }
+  },
+  "version": "1.0"
+}

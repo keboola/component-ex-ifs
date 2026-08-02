@@ -1,0 +1,18 @@
+{
+  "exit_code": 1,
+  "stderr": "Component failed with a user error\nTraceback (most recent call last):\n  File \"src/component.py\", line 448, in <module>\n    comp.execute_action()\n    ~~~~~~~~~~~~~~~~~~~^^\n  File \"/Users/matyasjirat/VSCodeProjects/Keboola/component-ex-ifs/.venv/lib/python3.14/site-packages/keboola/component/base.py\", line 251, in execute_action\n    return self._do_execute_action()\n           ~~~~~~~~~~~~~~~~~~~~~~~^^\n  File \"/Users/matyasjirat/VSCodeProjects/Keboola/component-ex-ifs/.venv/lib/python3.14/site-packages/keboola/component/base.py\", line 265, in _do_execute_action\n    return action_method()\n  File \"src/component.py\", line 216, in run\n    table, watermark, count = self._extract(row, meta, query_filter)\n                              ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"src/component.py\", line 293, in _extract\n    for record in self.client.iter_rows(\n                  ~~~~~~~~~~~~~~~~~~~~~^\n        row.service,\n        ^^^^^^^^^^^^\n    ...<4 lines>...\n        strip_meta=not row.keep_meta_fields,\n        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n    ):\n    ^\n  File \"/Users/matyasjirat/VSCodeProjects/Keboola/component-ex-ifs/src/client/odata.py\", line 133, in iter_rows\n    body = self._request(url).json()\n           ~~~~~~~~~~~~~^^^^^\n  File \"/Users/matyasjirat/VSCodeProjects/Keboola/component-ex-ifs/src/client/odata.py\", line 219, in _request\n    raise UserException(self._error_message(resp, code))\nkeboola.component.exceptions.UserException: IFS request failed (400): Malformed Request.\n",
+  "logs": [
+    {
+      "level": "INFO",
+      "logger": "root",
+      "message": "Loading state file..",
+      "timestamp": "2026-08-02T21:53:15.000Z"
+    },
+    {
+      "level": "ERROR",
+      "logger": "__main__",
+      "message": "Component failed with a user error\nTraceback (most recent call last):\n  File \"src/component.py\", line 448, in <module>\n    comp.execute_action()\n    ~~~~~~~~~~~~~~~~~~~^^\n  File \"/Users/matyasjirat/VSCodeProjects/Keboola/component-ex-ifs/.venv/lib/python3.14/site-packages/keboola/component/base.py\", line 251, in execute_action\n    return self._do_execute_action()\n           ~~~~~~~~~~~~~~~~~~~~~~~^^\n  File \"/Users/matyasjirat/VSCodeProjects/Keboola/component-ex-ifs/.venv/lib/python3.14/site-packages/keboola/component/base.py\", line 265, in _do_execute_action\n    return action_method()\n  File \"src/component.py\", line 216, in run\n    table, watermark, count = self._extract(row, meta, query_filter)\n                              ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"src/component.py\", line 293, in _extract\n    for record in self.client.iter_rows(\n                  ~~~~~~~~~~~~~~~~~~~~~^\n        row.service,\n        ^^^^^^^^^^^^\n    ...<4 lines>...\n        strip_meta=not row.keep_meta_fields,\n        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n    ):\n    ^\n  File \"/Users/matyasjirat/VSCodeProjects/Keboola/component-ex-ifs/src/client/odata.py\", line 133, in iter_rows\n    body = self._request(url).json()\n           ~~~~~~~~~~~~~^^^^^\n  File \"/Users/matyasjirat/VSCodeProjects/Keboola/component-ex-ifs/src/client/odata.py\", line 219, in _request\n    raise UserException(self._error_message(resp, code))\nkeboola.component.exceptions.UserException: IFS request failed (400): Malformed Request.",
+      "timestamp": "2026-08-02T21:53:15.000Z"
+    }
+  ]
+}

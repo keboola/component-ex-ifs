@@ -1,0 +1,34 @@
+{
+  "action": "run",
+  "parameters": {
+    "tenant_id": "acme",
+    "realm": "acme1",
+    "client_id": "acme_client",
+    "#client_secret": "DUMMY_SECRET",
+    "service_account": "svc_account",
+    "service": "VoucherRowsAnalysis",
+    "entity_set": "VoucherRowSet",
+    "columns": [
+      "Company",
+      "VoucherType",
+      "AccountingYear",
+      "VoucherNo",
+      "RowNo",
+      "VoucherDate",
+      "Account",
+      "Amount",
+      "CurrencyCode"
+    ],
+    "primary_key": [
+      "Company",
+      "VoucherType",
+      "AccountingYear",
+      "VoucherNo",
+      "RowNo"
+    ],
+    "fetch_type": "incremental_fetch",
+    "incremental_field": "VoucherDate",
+    "load_type": "incremental_load",
+    "filter": "AccountingYear eq 2026"
+  }
+}

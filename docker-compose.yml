@@ -15,5 +15,6 @@ services:
       - ./data:/data
     environment:
       - KBC_DATADIR=./data
+      - KBC_DATA_TYPE_SUPPORT=authoritative
     command:
       - python -m pytest tests/ --tb=short -q

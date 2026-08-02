@@ -1,0 +1,230 @@
+[
+  {
+    "name": "01_testConnection",
+    "description": "testConnection sync action exchanges a client_credentials token (success).",
+    "config": {
+      "action": "testConnection",
+      "parameters": {
+        "tenant_id": "acme",
+        "realm": "acme1",
+        "client_id": "acme_client",
+        "#client_secret": "DUMMY_SECRET",
+        "service_account": "svc_account"
+      }
+    }
+  },
+  {
+    "name": "02_validate_query",
+    "description": "validate_query sync action runs a cheap $top=1 GET against the row's assembled query.",
+    "config": {
+      "action": "validate_query",
+      "parameters": {
+        "tenant_id": "acme",
+        "realm": "acme1",
+        "client_id": "acme_client",
+        "#client_secret": "DUMMY_SECRET",
+        "service_account": "svc_account",
+        "service": "VoucherRowsAnalysis",
+        "entity_set": "VoucherRowSet",
+        "columns": ["Company", "VoucherNo", "RowNo", "VoucherDate"]
+      }
+    }
+  },
+  {
+    "name": "03_list_entitysets",
+    "description": "list_entitysets sync action parses the service $metadata (EDMX) into an entity-set dropdown.",
+    "config": {
+      "action": "list_entitysets",
+      "parameters": {
+        "tenant_id": "acme",
+        "realm": "acme1",
+        "client_id": "acme_client",
+        "#client_secret": "DUMMY_SECRET",
+        "service_account": "svc_account",
+        "service": "VoucherRowsAnalysis"
+      }
+    }
+  },
+  {
+    "name": "04_list_columns",
+    "description": "list_columns sync action lists scalar EDMX properties (nav props excluded) for the entity set.",
+    "config": {
+      "action": "list_columns",
+      "parameters": {
+        "tenant_id": "acme",
+        "realm": "acme1",
+        "client_id": "acme_client",
+        "#client_secret": "DUMMY_SECRET",
+        "service_account": "svc_account",
+        "service": "VoucherRowsAnalysis",
+        "entity_set": "VoucherRowSet"
+      }
+    }
+  },
+  {
+    "name": "10_happy_full",
+    "description": "Full fetch + full load of VoucherRowSet -> one table with an authoritative schema manifest; IFS meta-fields (@odata.*/luname/keyref/Objgrants) are stripped from the output columns.",
+    "config": {
+      "action": "run",
+      "parameters": {
+        "tenant_id": "acme",
+        "realm": "acme1",
+        "client_id": "acme_client",
+        "#client_secret": "DUMMY_SECRET",
+        "service_account": "svc_account",
+        "service": "VoucherRowsAnalysis",
+        "entity_set": "VoucherRowSet",
+        "columns": ["Company", "VoucherType", "AccountingYear", "VoucherNo", "RowNo", "VoucherDate", "Account", "Amount", "CurrencyCode"],
+        "primary_key": ["Company", "VoucherType", "AccountingYear", "VoucherNo", "RowNo"],
+        "fetch_type": "full_fetch",
+        "load_type": "full_load",
+        "filter": "AccountingYear eq 2026"
+      }
+    }
+  },
+  {
+    "name": "11_incremental_init",
+    "description": "First incremental run with empty state -> full pull that establishes the VoucherDate watermark in state.json.",
+    "config": {
+      "action": "run",
+      "parameters": {
+        "tenant_id": "acme",
+        "realm": "acme1",
+        "client_id": "acme_client",
+        "#client_secret": "DUMMY_SECRET",
+        "service_account": "svc_account",
+        "service": "VoucherRowsAnalysis",
+        "entity_set": "VoucherRowSet",
+        "columns": ["Company", "VoucherType", "AccountingYear", "VoucherNo", "RowNo", "VoucherDate", "Account", "Amount", "CurrencyCode"],
+        "primary_key": ["Company", "VoucherType", "AccountingYear", "VoucherNo", "RowNo"],
+        "fetch_type": "incremental_fetch",
+        "incremental_field": "VoucherDate",
+        "load_type": "incremental_load",
+        "filter": "AccountingYear eq 2026"
+      }
+    }
+  },
+  {
+    "name": "12_incremental_advance",
+    "description": "Second incremental run with the chained watermark state -> a `VoucherDate gt <last_value>` $filter is applied and state advances.",
+    "config": {
+      "action": "run",
+      "parameters": {
+        "tenant_id": "acme",
+        "realm": "acme1",
+        "client_id": "acme_client",
+        "#client_secret": "DUMMY_SECRET",
+        "service_account": "svc_account",
+        "service": "VoucherRowsAnalysis",
+        "entity_set": "VoucherRowSet",
+        "columns": ["Company", "VoucherType", "AccountingYear", "VoucherNo", "RowNo", "VoucherDate", "Account", "Amount", "CurrencyCode"],
+        "primary_key": ["Company", "VoucherType", "AccountingYear", "VoucherNo", "RowNo"],
+        "fetch_type": "incremental_fetch",
+        "incremental_field": "VoucherDate",
+        "load_type": "incremental_load",
+        "filter": "AccountingYear eq 2026"
+      }
+    }
+  },
+  {
+    "name": "13_paging_multi",
+    "description": "page_size=50 over a >50-row result forces the multi-page paging loop ($skip fallback) to collapse into one table.",
+    "config": {
+      "action": "run",
+      "parameters": {
+        "tenant_id": "acme",
+        "realm": "acme1",
+        "client_id": "acme_client",
+        "#client_secret": "DUMMY_SECRET",
+        "service_account": "svc_account",
+        "service": "VoucherRowsAnalysis",
+        "entity_set": "VoucherRowSet",
+        "columns": ["Company", "VoucherType", "AccountingYear", "VoucherNo", "RowNo", "VoucherDate"],
+        "primary_key": ["Company", "VoucherType", "AccountingYear", "VoucherNo", "RowNo"],
+        "fetch_type": "full_fetch",
+        "load_type": "full_load",
+        "filter": "AccountingYear eq 2026",
+        "advanced": {
+          "page_size": 60
+        }
+      }
+    }
+  },
+  {
+    "name": "20_error_bad_filter",
+    "description": "An invalid $filter -> IFS 400 -> UserException -> exit code 1.",
+    "config": {
+      "action": "run",
+      "parameters": {
+        "tenant_id": "acme",
+        "realm": "acme1",
+        "client_id": "acme_client",
+        "#client_secret": "DUMMY_SECRET",
+        "service_account": "svc_account",
+        "service": "VoucherRowsAnalysis",
+        "entity_set": "VoucherRowSet",
+        "columns": ["Company", "VoucherNo"],
+        "primary_key": ["Company", "VoucherNo"],
+        "fetch_type": "full_fetch",
+        "load_type": "full_load",
+        "filter": "NotAColumn eq 'x'"
+      }
+    }
+  },
+  {
+    "name": "21_error_unknown_service",
+    "description": "An unknown projection service -> $metadata 404 -> UserException -> exit code 1.",
+    "config": {
+      "action": "run",
+      "parameters": {
+        "tenant_id": "acme",
+        "realm": "acme1",
+        "client_id": "acme_client",
+        "#client_secret": "DUMMY_SECRET",
+        "service_account": "svc_account",
+        "service": "NoSuchServiceXyz",
+        "entity_set": "VoucherRowSet",
+        "primary_key": ["Company"],
+        "fetch_type": "full_fetch",
+        "load_type": "full_load"
+      }
+    }
+  },
+  {
+    "name": "22_error_unknown_entityset",
+    "description": "A known service but unknown entity set -> discovery raises UserException -> exit code 1.",
+    "config": {
+      "action": "run",
+      "parameters": {
+        "tenant_id": "acme",
+        "realm": "acme1",
+        "client_id": "acme_client",
+        "#client_secret": "DUMMY_SECRET",
+        "service_account": "svc_account",
+        "service": "VoucherRowsAnalysis",
+        "entity_set": "NoSuchEntitySet",
+        "primary_key": ["Company"],
+        "fetch_type": "full_fetch",
+        "load_type": "full_load"
+      }
+    }
+  },
+  {
+    "name": "23_error_missing_service",
+    "description": "A row config missing the required `service` field -> config validation fails before any HTTP call -> exit code 1.",
+    "config": {
+      "action": "run",
+      "parameters": {
+        "tenant_id": "acme",
+        "realm": "acme1",
+        "client_id": "acme_client",
+        "#client_secret": "DUMMY_SECRET",
+        "service_account": "svc_account",
+        "entity_set": "VoucherRowSet",
+        "primary_key": ["Company"],
+        "fetch_type": "full_fetch",
+        "load_type": "full_load"
+      }
+    }
+  }
+]

@@ -1,0 +1,16 @@
+{
+  "files": {},
+  "hash_algorithm": "sha256",
+  "tables": {
+    "VoucherRowSet.csv": {
+      "columns": [
+        "Company",
+        "VoucherNo"
+      ],
+      "hash": "sha256:bb792178bd5ee8f3ba4f6c7585224c39a1af9ab37a3e101501a8932f97f6e864",
+      "row_count": 1,
+      "size_bytes": 19
+    }
+  },
+  "version": "1.0"
+}

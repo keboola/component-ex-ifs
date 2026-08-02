@@ -1,0 +1,18 @@
+{
+  "exit_code": 1,
+  "stderr": "Component failed with a user error\nTraceback (most recent call last):\n  File \"src/component.py\", line 448, in <module>\n    comp.execute_action()\n    ~~~~~~~~~~~~~~~~~~~^^\n  File \"/Users/matyasjirat/VSCodeProjects/Keboola/component-ex-ifs/.venv/lib/python3.14/site-packages/keboola/component/base.py\", line 251, in execute_action\n    return self._do_execute_action()\n           ~~~~~~~~~~~~~~~~~~~~~~~^^\n  File \"/Users/matyasjirat/VSCodeProjects/Keboola/component-ex-ifs/.venv/lib/python3.14/site-packages/keboola/component/base.py\", line 265, in _do_execute_action\n    return action_method()\n  File \"src/component.py\", line 214, in run\n    meta = self._discover(row)\n  File \"src/component.py\", line 242, in _discover\n    entity_sets = parse_metadata(self.client.get_metadata(row.service))\n                                 ~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^\n  File \"/Users/matyasjirat/VSCodeProjects/Keboola/component-ex-ifs/src/client/odata.py\", line 99, in get_metadata\n    resp = self._request(f\"{self.service_url(service)}/$metadata\", accept=\"application/xml\")\n  File \"/Users/matyasjirat/VSCodeProjects/Keboola/component-ex-ifs/src/client/odata.py\", line 219, in _request\n    raise UserException(self._error_message(resp, code))\nkeboola.component.exceptions.UserException: IFS request failed (404): Metadata not found.\n",
+  "logs": [
+    {
+      "level": "INFO",
+      "logger": "root",
+      "message": "Loading state file..",
+      "timestamp": "2026-08-02T21:53:15.000Z"
+    },
+    {
+      "level": "ERROR",
+      "logger": "__main__",
+      "message": "Component failed with a user error\nTraceback (most recent call last):\n  File \"src/component.py\", line 448, in <module>\n    comp.execute_action()\n    ~~~~~~~~~~~~~~~~~~~^^\n  File \"/Users/matyasjirat/VSCodeProjects/Keboola/component-ex-ifs/.venv/lib/python3.14/site-packages/keboola/component/base.py\", line 251, in execute_action\n    return self._do_execute_action()\n           ~~~~~~~~~~~~~~~~~~~~~~~^^\n  File \"/Users/matyasjirat/VSCodeProjects/Keboola/component-ex-ifs/.venv/lib/python3.14/site-packages/keboola/component/base.py\", line 265, in _do_execute_action\n    return action_method()\n  File \"src/component.py\", line 214, in run\n    meta = self._discover(row)\n  File \"src/component.py\", line 242, in _discover\n    entity_sets = parse_metadata(self.client.get_metadata(row.service))\n                                 ~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^\n  File \"/Users/matyasjirat/VSCodeProjects/Keboola/component-ex-ifs/src/client/odata.py\", line 99, in get_metadata\n    resp = self._request(f\"{self.service_url(service)}/$metadata\", accept=\"application/xml\")\n  File \"/Users/matyasjirat/VSCodeProjects/Keboola/component-ex-ifs/src/client/odata.py\", line 219, in _request\n    raise UserException(self._error_message(resp, code))\nkeboola.component.exceptions.UserException: IFS request failed (404): Metadata not found.",
+      "timestamp": "2026-08-02T21:53:15.000Z"
+    }
+  ]
+}

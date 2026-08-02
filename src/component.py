@@ -7,7 +7,9 @@ output table, with live EDMX schema discovery, native types, and an incremental
 """
 
 import csv
+import json
 import logging
+import os
 import sys
 from collections import OrderedDict
 from datetime import UTC, datetime
@@ -24,6 +26,137 @@ from client.schema import build_column_schema, format_filter_literal
 from configuration import Configuration, FetchType, RowConfiguration
 
 logger = logging.getLogger(__name__)
+
+
+# --- VCR cassette-recording sanitizers -------------------------------------
+# ``VCR_SANITIZERS`` is picked up automatically by the keboola.datadirtest
+# scaffolder when recording cassettes against the live IFS tenant. It has no
+# effect on a normal platform run (secrets.json is absent there, so the rewrite
+# rules resolve to an empty list and the sanitizers are never invoked).
+#
+# The real tenant leaked into a public repo on a prior build, so cassettes MUST
+# NOT carry a real tenant host, realm, company code, service account or any real
+# financial value. The rules below are read from the gitignored secrets.json so
+# the recorder — not this transcript — sees the real values.
+
+_IFS_PLACEHOLDERS = {
+    "host": "acme.ifs.cloud",
+    "tenant": "acme",
+    "realm": "acme1",
+    "service_account": "svc_account",
+    "client_id": "acme_client",
+}
+
+
+def _ifs_rewrite_rules() -> list[tuple[str, str]]:
+    """Return ``(real_value, placeholder)`` rewrite pairs read from secrets.json.
+
+    Returns ``[]`` when no secrets file is present (CI replay / production run),
+    which makes the host/realm rewrite a no-op — the committed cassette already
+    holds placeholders and the replay config uses them.
+    """
+    for candidate in ("secrets.json", os.path.join(os.path.dirname(__file__), "..", "secrets.json")):
+        if not os.path.exists(candidate):
+            continue
+        try:
+            with open(candidate, encoding="utf-8") as handle:
+                data = json.load(handle)
+        except OSError, ValueError:
+            return []
+        params = data.get("parameters", data)
+        rules: list[tuple[str, str]] = []
+        tenant = str(params.get("tenant_id", "")).strip()
+        realm = str(params.get("realm", "")).strip()
+        service_account = str(params.get("service_account", "")).strip()
+        client_id = str(params.get("client_id", "")).strip()
+        if tenant:
+            rules.append((f"{tenant}.ifs.cloud", _IFS_PLACEHOLDERS["host"]))
+            rules.append((tenant, _IFS_PLACEHOLDERS["tenant"]))
+        if realm:
+            rules.append((realm, _IFS_PLACEHOLDERS["realm"]))
+        if service_account:
+            rules.append((service_account, _IFS_PLACEHOLDERS["service_account"]))
+        if client_id:
+            rules.append((client_id, _IFS_PLACEHOLDERS["client_id"]))
+        # Longest match first so a tenant substring inside its own host is not
+        # half-rewritten (host rule fires before the bare-tenant rule).
+        return sorted(rules, key=lambda pair: len(pair[0]), reverse=True)
+    return []
+
+
+_IFS_REWRITE_RULES = _ifs_rewrite_rules()
+
+
+def _ifs_scrub_text(text: str) -> str:
+    for real, placeholder in _IFS_REWRITE_RULES:
+        if real and real in text:
+            text = text.replace(real, placeholder)
+    return text
+
+
+def _ifs_rewrite_request(request):
+    """Rewrite the tenant host + realm in a recorded request URI (cassette-only)."""
+    uri = getattr(request, "uri", None)
+    if isinstance(uri, str):
+        request.uri = _ifs_scrub_text(uri)
+    return request
+
+
+def _ifs_rewrite_response(response):
+    """Rewrite the tenant host + realm inside a recorded response body (``@odata.context``)."""
+    body = response.get("body") if isinstance(response, dict) else None
+    if isinstance(body, dict) and "string" in body:
+        payload = body["string"]
+        if isinstance(payload, bytes):
+            body["string"] = _ifs_scrub_text(payload.decode("utf-8", "ignore")).encode("utf-8")
+        elif isinstance(payload, str):
+            body["string"] = _ifs_scrub_text(payload)
+    return response
+
+
+try:
+    from keboola.vcr import BodyFieldSanitizer, CallbackSanitizer, DefaultSanitizer
+except ImportError:
+    # keboola.vcr ships only via the dev extra (keboola.datadirtest); the
+    # production image is built with `uv sync --no-dev`, so degrade to no-op there.
+    VCR_SANITIZERS: list = []
+else:
+    VCR_SANITIZERS = [
+        # 1. Auth/secret redaction, cassette-only: tokens + client_secret stay REAL
+        #    for the component while recording, redacted in the written cassette.
+        DefaultSanitizer(additional_sensitive_fields=["tenant_id", "service_account", "realm"]),
+        # 2. Host/realm rewrite, cassette-only (NOT scrub_before_read): the live
+        #    host stays real for the component mid-record; only the cassette gets
+        #    the acme.ifs.cloud / acme1 placeholders so replay matches the placeholder config.
+        CallbackSanitizer(before_request=_ifs_rewrite_request, before_response=_ifs_rewrite_response),
+        # 3. Financial / identifier scrub, scrub_before_read: the component READS
+        #    scrubbed values, so committed cassettes AND expected/ tables carry no
+        #    real financial data. Company -> the generic public code 100; the
+        #    incremental date -> a fixed synthetic date; @odata.id (real PK/company
+        #    key-predicate) and every other scalar column -> REDACTED. None of these
+        #    are round-tripped to the API (no company $filter, $skip paging, no
+        #    nextLink token), so redacting them before read cannot break recording.
+        BodyFieldSanitizer(fields=["Company"], replacement="100", scrub_before_read=True),
+        BodyFieldSanitizer(fields=["VoucherDate"], replacement="2020-01-01", scrub_before_read=True),
+        BodyFieldSanitizer(
+            fields=[
+                "VoucherType",
+                "AccountingYear",
+                "VoucherNo",
+                "RowNo",
+                "Account",
+                "Amount",
+                "CurrencyCode",
+                "@odata.id",
+                "@odata.etag",
+                "luname",
+                "keyref",
+                "Objgrants",
+            ],
+            replacement="REDACTED",
+            scrub_before_read=True,
+        ),
+    ]
 
 
 class Component(ComponentBase):

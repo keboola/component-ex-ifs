@@ -1,0 +1,100 @@
+{
+  "incremental": true,
+  "write_always": false,
+  "delimiter": ",",
+  "enclosure": "\"",
+  "manifest_type": "out",
+  "has_header": true,
+  "schema": [
+    {
+      "name": "Company",
+      "data_type": {
+        "base": {
+          "type": "STRING"
+        }
+      },
+      "nullable": true,
+      "primary_key": true
+    },
+    {
+      "name": "VoucherType",
+      "data_type": {
+        "base": {
+          "type": "STRING"
+        }
+      },
+      "nullable": true,
+      "primary_key": true
+    },
+    {
+      "name": "AccountingYear",
+      "data_type": {
+        "base": {
+          "type": "NUMERIC",
+          "length": "130,65"
+        }
+      },
+      "nullable": true,
+      "primary_key": true
+    },
+    {
+      "name": "VoucherNo",
+      "data_type": {
+        "base": {
+          "type": "NUMERIC",
+          "length": "130,65"
+        }
+      },
+      "nullable": true,
+      "primary_key": true
+    },
+    {
+      "name": "RowNo",
+      "data_type": {
+        "base": {
+          "type": "NUMERIC",
+          "length": "130,65"
+        }
+      },
+      "nullable": true,
+      "primary_key": true
+    },
+    {
+      "name": "VoucherDate",
+      "data_type": {
+        "base": {
+          "type": "DATE"
+        }
+      },
+      "nullable": true
+    },
+    {
+      "name": "Account",
+      "data_type": {
+        "base": {
+          "type": "STRING"
+        }
+      },
+      "nullable": true
+    },
+    {
+      "name": "Amount",
+      "data_type": {
+        "base": {
+          "type": "NUMERIC",
+          "length": "130,65"
+        }
+      },
+      "nullable": true
+    },
+    {
+      "name": "CurrencyCode",
+      "data_type": {
+        "base": {
+          "type": "STRING"
+        }
+      },
+      "nullable": true
+    }
+  ]
+}

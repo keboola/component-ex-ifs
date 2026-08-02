@@ -11,6 +11,10 @@ COPY src/ src/
 COPY scripts/ scripts/
 
 FROM base AS test
+# Authoritative native types: the component emits the `schema` manifest form and
+# the recorded expected/ fixtures assume it — without this the SDK auto-detects
+# legacy mode and produces columns+column_metadata instead.
+ENV KBC_DATA_TYPE_SUPPORT=authoritative
 RUN uv sync --all-groups --frozen
 COPY tests/ tests/
 RUN uv run ruff check src/ tests/
