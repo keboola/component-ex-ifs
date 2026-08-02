@@ -1,19 +1,89 @@
 {
   "type": "object",
-  "title": "extractor configuration",
-  "required": [
-    "print_hello"
-  ],
+  "title": "IFS Cloud Connection",
+  "required": ["tenant_id", "realm", "client_id", "#client_secret"],
   "properties": {
-    "print_hello": {
-      "type": "boolean",
-      "title": "Print Hello",
-      "propertyOrder": 1
+    "tenant_id": {
+      "type": "string",
+      "title": "Tenant ID",
+      "description": "IFS Cloud tenant identifier",
+      "propertyOrder": 10,
+      "options": {
+        "tooltip": "The connection host is derived as `{tenant_id}.ifs.cloud`."
+      }
     },
-    "debug": {
-      "type": "boolean",
-      "title": "Debug",
-      "propertyOrder": 2
+    "realm": {
+      "type": "string",
+      "title": "Realm",
+      "description": "Keycloak realm for this tenant",
+      "propertyOrder": 20
+    },
+    "client_id": {
+      "type": "string",
+      "title": "Client ID",
+      "description": "OAuth client ID for the service account",
+      "propertyOrder": 30
+    },
+    "#client_secret": {
+      "type": "string",
+      "title": "Client Secret",
+      "format": "password",
+      "description": "OAuth client secret",
+      "propertyOrder": 40
+    },
+    "service_account": {
+      "type": "string",
+      "title": "Service Account",
+      "description": "IFS service user this credential represents",
+      "propertyOrder": 50,
+      "options": {
+        "tooltip": "Optional label recording which IFS service user this client credential belongs to. For operator reference only — it is not sent to IFS and does not affect the connection."
+      }
+    },
+    "testConnection": {
+      "type": "button",
+      "format": "test-connection",
+      "propertyOrder": 60,
+      "options": {
+        "async": {
+          "label": "Test Connection",
+          "action": "testConnection"
+        }
+      }
+    },
+    "base_path": {
+      "type": "string",
+      "title": "Base Path",
+      "description": "Base path for IFS projection services",
+      "default": "/main/ifsapplications/projection/v1",
+      "propertyOrder": 100,
+      "options": {
+        "tooltip": "Appended to the tenant host to build each projection service URL. Change only for non-standard IFS deployments."
+      }
+    },
+    "page_size": {
+      "type": "integer",
+      "title": "Page Size",
+      "description": "Rows requested per OData page",
+      "default": 1000,
+      "minimum": 1,
+      "propertyOrder": 110
+    },
+    "request_timeout": {
+      "type": "integer",
+      "title": "Request Timeout",
+      "description": "HTTP request timeout in seconds",
+      "default": 60,
+      "minimum": 1,
+      "propertyOrder": 120
+    },
+    "max_retries": {
+      "type": "integer",
+      "title": "Max Retries",
+      "description": "Retries on transient HTTP errors",
+      "default": 5,
+      "minimum": 0,
+      "propertyOrder": 130
     }
   }
 }

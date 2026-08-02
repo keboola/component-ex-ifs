@@ -1,1 +1,170 @@
-{}
+{
+  "type": "object",
+  "title": "Entity Extraction",
+  "required": ["service", "entity_set"],
+  "properties": {
+    "service": {
+      "type": "string",
+      "title": "Service",
+      "description": "IFS projection service name",
+      "format": "select",
+      "enum": [],
+      "propertyOrder": 10,
+      "options": {
+        "tooltip": "Standard or custom IFS projection service, e.g. `CustomerHandling`. Pick from the catalog or type a custom/uncatalogued service name.",
+        "creatable": true,
+        "async": {
+          "label": "Load Services",
+          "action": "list_services",
+          "autoload": true
+        }
+      }
+    },
+    "entity_set": {
+      "type": "string",
+      "title": "Entity Set",
+      "description": "Entity set to extract from the service",
+      "format": "select",
+      "enum": [],
+      "propertyOrder": 20,
+      "options": {
+        "tooltip": "Entity set exposed by the selected service's OData metadata.",
+        "async": {
+          "label": "Load Entity Sets",
+          "action": "list_entitysets",
+          "autoload": ["parameters.service"]
+        }
+      }
+    },
+    "columns": {
+      "type": "array",
+      "title": "Columns",
+      "description": "Columns to select, leave empty for all",
+      "format": "select",
+      "uniqueItems": true,
+      "items": {
+        "type": "string"
+      },
+      "propertyOrder": 30,
+      "options": {
+        "tooltip": "OData `$select`. Leave empty to fetch all columns, including navigation properties needed by `$expand`.",
+        "async": {
+          "label": "Load Columns",
+          "action": "list_columns"
+        }
+      }
+    },
+    "filter": {
+      "type": "string",
+      "title": "Filter",
+      "description": "OData filter expression",
+      "propertyOrder": 40,
+      "options": {
+        "tooltip": "OData `$filter` expression, combined with the incremental watermark when incremental fetch is enabled.\n\nExample:\n```\nStatus eq 'Released'\n```"
+      }
+    },
+    "order_by": {
+      "type": "string",
+      "title": "Order By",
+      "description": "OData order-by expression",
+      "propertyOrder": 50,
+      "options": {
+        "tooltip": "OData `$orderby` expression, e.g. `EntryDate desc`."
+      }
+    },
+    "expand": {
+      "type": "string",
+      "title": "Expand",
+      "description": "OData expand expression for related entities",
+      "propertyOrder": 60,
+      "options": {
+        "tooltip": "OData `$expand` expression to denormalize related entities into the output, e.g. `CustomerAddress`. Off by default, since expanding increases payload size."
+      }
+    },
+    "keep_meta_fields": {
+      "type": "boolean",
+      "title": "Keep Meta Fields",
+      "description": "Keep IFS metadata fields in the output",
+      "default": false,
+      "propertyOrder": 70,
+      "options": {
+        "tooltip": "IFS OData responses include internal metadata fields, e.g. `@odata.etag`. Left disabled, they are stripped from the output table."
+      }
+    },
+    "validate_query": {
+      "type": "button",
+      "title": "Validate Query",
+      "format": "sync-action",
+      "propertyOrder": 80,
+      "options": {
+        "async": {
+          "label": "Validate Query",
+          "action": "validate_query"
+        }
+      }
+    },
+    "fetch_type": {
+      "type": "string",
+      "title": "Fetch Type",
+      "description": "Full or incremental fetch from the source",
+      "enum": ["full_fetch", "incremental_fetch"],
+      "default": "full_fetch",
+      "propertyOrder": 90,
+      "options": {
+        "enum_titles": ["Full Fetch", "Incremental Fetch"],
+        "tooltip": "Incremental fetch adds a server-side filter on the incremental field using the previous run's watermark."
+      }
+    },
+    "incremental_field": {
+      "type": "string",
+      "title": "Incremental Field",
+      "description": "Field used as the incremental watermark",
+      "format": "select",
+      "enum": [],
+      "propertyOrder": 100,
+      "options": {
+        "tooltip": "Date or timestamp field used to filter for records new or changed since the last run.",
+        "dependencies": {
+          "fetch_type": "incremental_fetch"
+        },
+        "async": {
+          "label": "Load Incremental Fields",
+          "action": "list_incremental_fields"
+        }
+      }
+    },
+    "load_type": {
+      "type": "string",
+      "title": "Load Type",
+      "description": "Full or incremental load into Storage",
+      "enum": ["full_load", "incremental_load"],
+      "default": "incremental_load",
+      "propertyOrder": 110,
+      "options": {
+        "enum_titles": ["Full Load", "Incremental Load"],
+        "tooltip": "Incremental load upserts rows by primary key; full load overwrites the destination table on every run."
+      }
+    },
+    "primary_key": {
+      "type": "array",
+      "title": "Primary Key",
+      "description": "Columns that uniquely identify each record",
+      "format": "select",
+      "uniqueItems": true,
+      "items": {
+        "type": "string"
+      },
+      "propertyOrder": 120,
+      "options": {
+        "tooltip": "Required for Incremental Load — used to upsert and deduplicate rows in Storage.",
+        "dependencies": {
+          "load_type": "incremental_load"
+        },
+        "async": {
+          "label": "Load Primary Keys",
+          "action": "list_primary_keys"
+        }
+      }
+    }
+  }
+}
