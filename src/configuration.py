@@ -31,6 +31,17 @@ def _wrap_validation_error(exc: ValidationError) -> UserException:
     return UserException("Validation Error: " + ", ".join(messages))
 
 
+class AdvancedConfig(BaseModel):
+    """Optional tuning fields rendered as a collapsible Advanced section."""
+
+    model_config = {"extra": "ignore", "populate_by_name": True}
+
+    base_path: str = "/main/ifsapplications/projection/v1"
+    page_size: int = 1000
+    request_timeout: int = 60
+    max_retries: int = 5
+
+
 class Configuration(BaseModel):
     """Root connection config for one IFS Cloud tenant."""
 
@@ -41,10 +52,7 @@ class Configuration(BaseModel):
     client_id: str
     client_secret: str = Field(alias="#client_secret")
     service_account: str | None = None
-    base_path: str = "/main/ifsapplications/projection/v1"
-    page_size: int = 1000
-    request_timeout: int = 60
-    max_retries: int = 5
+    advanced: AdvancedConfig = Field(default_factory=AdvancedConfig)
 
     def __init__(self, **data):
         try:

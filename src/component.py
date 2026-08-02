@@ -50,20 +50,21 @@ class Component(ComponentBase):
             self._auth = None
             self._client = None
             return
+        advanced = self._config.advanced
         self._auth = IfsAuthClient(
             host=self._config.host,
             realm=self._config.realm,
             client_id=self._config.client_id,
             client_secret=self._config.client_secret,
-            timeout=self._config.request_timeout,
+            timeout=advanced.request_timeout,
         )
         self._client = IfsODataClient(
             host=self._config.host,
-            base_path=self._config.base_path,
+            base_path=advanced.base_path,
             auth=self._auth,
-            page_size=self._config.page_size,
-            timeout=self._config.request_timeout,
-            max_retries=self._config.max_retries,
+            page_size=advanced.page_size,
+            timeout=advanced.request_timeout,
+            max_retries=advanced.max_retries,
         )
 
     @property

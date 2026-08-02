@@ -51,39 +51,49 @@
         }
       }
     },
-    "base_path": {
-      "type": "string",
-      "title": "Base Path",
-      "description": "Base path for IFS projection services",
-      "default": "/main/ifsapplications/projection/v1",
+    "advanced": {
+      "type": "object",
+      "title": "Advanced",
       "propertyOrder": 100,
       "options": {
-        "tooltip": "Appended to the tenant host to build each projection service URL. Change only for non-standard IFS deployments."
+        "collapsed": true
+      },
+      "properties": {
+        "base_path": {
+          "type": "string",
+          "title": "Base Path",
+          "description": "Base path for IFS projection services",
+          "default": "/main/ifsapplications/projection/v1",
+          "propertyOrder": 10,
+          "options": {
+            "tooltip": "Appended to the tenant host to build each projection service URL. Change only for non-standard IFS deployments."
+          }
+        },
+        "page_size": {
+          "type": "integer",
+          "title": "Page Size",
+          "description": "Rows requested per OData page",
+          "default": 1000,
+          "minimum": 1,
+          "propertyOrder": 20
+        },
+        "request_timeout": {
+          "type": "integer",
+          "title": "Request Timeout",
+          "description": "HTTP request timeout in seconds",
+          "default": 60,
+          "minimum": 1,
+          "propertyOrder": 30
+        },
+        "max_retries": {
+          "type": "integer",
+          "title": "Max Retries",
+          "description": "Retries on transient HTTP errors",
+          "default": 5,
+          "minimum": 0,
+          "propertyOrder": 40
+        }
       }
-    },
-    "page_size": {
-      "type": "integer",
-      "title": "Page Size",
-      "description": "Rows requested per OData page",
-      "default": 1000,
-      "minimum": 1,
-      "propertyOrder": 110
-    },
-    "request_timeout": {
-      "type": "integer",
-      "title": "Request Timeout",
-      "description": "HTTP request timeout in seconds",
-      "default": 60,
-      "minimum": 1,
-      "propertyOrder": 120
-    },
-    "max_retries": {
-      "type": "integer",
-      "title": "Max Retries",
-      "description": "Retries on transient HTTP errors",
-      "default": 5,
-      "minimum": 0,
-      "propertyOrder": 130
     }
   }
 }

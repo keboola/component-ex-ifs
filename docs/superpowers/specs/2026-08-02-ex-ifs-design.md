@@ -279,12 +279,14 @@ Modules (API/auth client separated from `component.py`; `run()` a thin orchestra
 - `src/client/metadata.py` — EDMX `$metadata` parser (stdlib `xml.etree.ElementTree`; `lxml` only if
   namespace handling forces it): entity sets, properties + `Edm.*` types, keys, nav-props. Powers both
   the type mapping and the discovery sync actions.
-- `src/configuration.py` — Pydantic models: `Configuration` (root/connection) and `RowConfiguration`
-  (per-table). Typed fields (enums for `fetch_type`/`load_type`; no raw `dict`/`Any`);
-  `#client_secret` via `Field(alias="#client_secret")`; `extra="ignore"` set explicitly; validators
-  tolerate empty/None; a `computed_field` `incremental` derived from `load_type`. No `debug` field
-  (the base consumes the platform `debug`). Partial instantiation only where a sync action needs fewer
-  fields than `run()`.
+- `src/configuration.py` — Pydantic models: `Configuration` (root/connection), a nested
+  `AdvancedConfig` sub-model (the collapsible Advanced section of §5 — `base_path`, `page_size`,
+  `request_timeout`, `max_retries`, exposed as `Configuration.advanced` and read as `config.advanced.*`),
+  and `RowConfiguration` (per-table). Typed fields (enums for `fetch_type`/`load_type`; no raw
+  `dict`/`Any`); `#client_secret` via `Field(alias="#client_secret")`; `extra="ignore"` set explicitly;
+  validators tolerate empty/None; a `computed_field` `incremental` derived from `load_type`. No `debug`
+  field (the base consumes the platform `debug`). Partial instantiation only where a sync action needs
+  fewer fields than `run()`.
 - `src/component.py` — `Component(ComponentBase)`. Clients built in `__init__` (config permitting);
   `run()` under ~30 lines delegating to private methods: `_get_config`, `_discover_schema`
   (EDMX → columns/types/PK), `_build_filter` (watermark `gt` + user `$filter`), `_fetch` (paged

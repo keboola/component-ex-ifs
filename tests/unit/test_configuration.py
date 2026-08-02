@@ -7,8 +7,28 @@ from configuration import Configuration, FetchType, LoadType, RowConfiguration
 def test_root_config_parses_and_derives_host():
     cfg = Configuration(tenant_id="acme", realm="acme1", client_id="C", **{"#client_secret": "s"})
     assert cfg.host == "acme.ifs.cloud"
-    assert cfg.page_size == 1000
-    assert cfg.base_path == "/main/ifsapplications/projection/v1"
+    assert cfg.advanced.page_size == 1000
+    assert cfg.advanced.base_path == "/main/ifsapplications/projection/v1"
+
+
+def test_advanced_defaults_when_absent():
+    cfg = Configuration(tenant_id="t", realm="r", client_id="C", **{"#client_secret": "s"})
+    assert cfg.advanced.page_size == 1000
+    assert cfg.advanced.request_timeout == 60
+    assert cfg.advanced.max_retries == 5
+
+
+def test_advanced_nested_override_parses():
+    cfg = Configuration(
+        tenant_id="t",
+        realm="r",
+        client_id="C",
+        advanced={"page_size": 500, "max_retries": 2},
+        **{"#client_secret": "s"},
+    )
+    assert cfg.advanced.page_size == 500
+    assert cfg.advanced.max_retries == 2
+    assert cfg.advanced.request_timeout == 60  # untouched default
 
 
 def test_secret_alias_matches_schema_key():
@@ -19,6 +39,17 @@ def test_secret_alias_matches_schema_key():
 def test_missing_required_raises_userexception():
     with pytest.raises(UserException):
         Configuration(tenant_id="t")  # missing realm/client_id/#client_secret
+
+
+def test_nested_advanced_validation_error_raises_userexception():
+    with pytest.raises(UserException):
+        Configuration(
+            tenant_id="t",
+            realm="r",
+            client_id="C",
+            advanced={"page_size": "not-an-int"},
+            **{"#client_secret": "s"},
+        )
 
 
 def test_row_full_fetch_full_load_defaults_ok():
