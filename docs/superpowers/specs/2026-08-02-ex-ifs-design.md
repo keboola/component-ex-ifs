@@ -161,8 +161,8 @@ and the YAGNI list are the user's explicit scope calls).
 | **Custom / QuickReport projection services** (opt-in) | In scope | D2: user explicitly types a named custom service. Not blanket-defaulted (unstable schemas), but fully supported on demand via per-service `$metadata`. |
 | **Main entity-set collection reads** (`GET {svc}/{EntitySet}`) | In scope | The core extract — one entity set per config row → one table. Example: `VoucherRowSet`. |
 | **Reference / lookup entity sets** (e.g. `Reference_Account`, `Reference_CodeB..J`, `Reference_VoucherType`, `Reference_TaxBookLov`, `Reference_TaxSeries`, `Reference_UserGroupFinance`, `Reference_DeliveryType`) | In scope | Discovered like any entity set; each extractable as its own config row (dimension tables). No special-casing needed — they are entity sets. |
-| **Navigation properties / `$expand` denormalization** (e.g. `AccountRef`, `VoucherTypeRef`) | In scope (optional, default off) | Offered as an opt-in per-row `$expand` toggle (YAGNI: not default denormalization). `list_columns` can surface nav-props; expanded objects flatten to prefixed scalar columns. |
-| **OData query options** — `$filter`, `$select`, `$orderby`, `$top`, `$skip`, `$count`, `$expand` | In scope | `$select` (payload trim + column pick), `$filter` (incremental + user filter), `$orderby`, `$top`/`$skip` (paging fallback), `$count` (best-effort; some projections reject it — never make paging depend on it), `$expand` (above). |
+| **Navigation properties / `$expand` denormalization** (e.g. `AccountRef`, `VoucherTypeRef`) | **Excluded — deferred (future enhancement)** | Nav-prop target-type flattening is not built in v1: without resolving each nav-prop's target EDMX type, expanded objects can only be dropped, so `$expand` would silently lose data. Deferred until proper flattening (expanded entities → prefixed scalar columns) is implemented. `list_columns` offers scalar properties only (OData `$select` rejects nav-props with a 400). Extract related entity sets as their own rows instead. |
+| **OData query options** — `$filter`, `$select`, `$orderby`, `$top`, `$skip`, `$count` | In scope | `$select` (payload trim + column pick), `$filter` (incremental + user filter), `$orderby`, `$top`/`$skip` (paging fallback), `$count` (best-effort; some projections reject it — never make paging depend on it). `$expand` is deferred (see the row above). |
 | **`$search` free-text option** | In scope (best-effort) | Declared in the spec but not attached to every operation; exposed as an optional row filter, not relied on. |
 | **`$apply` (aggregation) option** | Excluded | Not modeled by IFS projections; aggregation belongs in a downstream transformation, not the extractor. User-approved YAGNI. |
 | **Catalog enumeration** (`AllProjections.svc/Projections`) | In scope | Powers the `list_services` sync-action dropdown (~5,640 services → searchable/typeahead), with **free-text service name as the always-works fallback** (per-service `$metadata` works without the catalog). |
@@ -195,9 +195,9 @@ and the YAGNI list are the user's explicit scope calls).
   sequential paging.
 - **Bulk/async export:** none — IFS projections are synchronous OData reads. N/A.
 - **Response shapes / nested data:** collections return `{ "value": [ … ] }`; a by-key GET returns a
-  bare object. Reference `VoucherRow` is 89 flat primitive fields (no nested objects). Where `$expand`
-  is used, expanded entities flatten to prefixed scalar columns; a variable-length expanded collection
-  (if ever present) may stay a single JSON column. IFS meta-fields are stripped (§4.1).
+  bare object. Reference `VoucherRow` is 89 flat primitive fields (no nested objects). `$expand`
+  denormalization is deferred (§4.1), so v1 extracts only the flat primitive columns of one entity set
+  per row. IFS meta-fields are stripped (§4.1).
 - **Type mapping (EDMX-driven):** `Edm.String/Guid/Binary/Stream → STRING`; `Edm.Boolean → BOOLEAN`;
   `Edm.Int16/Int32/Int64/Byte/SByte → INTEGER`; `Edm.Decimal → NUMERIC` (precision/scale from
   metadata); `Edm.Double/Single → FLOAT`; `Edm.Date → DATE`; `Edm.DateTime/DateTimeOffset → TIMESTAMP`;
@@ -232,7 +232,6 @@ plan). This section describes the fields and behaviours.
 - `load_type` — enum `full_load` | `incremental_load` (default `incremental_load`, CF default).
 - `filter` (`$filter`) — optional free-text OData filter (user-supplied, combined with the watermark).
 - `order_by` (`$orderby`) — optional.
-- `expand` (`$expand`) — optional; opt-in denormalization toggle/field (default off).
 - `keep_meta_fields` — optional boolean (default false) → strip IFS meta-fields unless set.
 - `validate_query` — a validate button (`format` sync-action widget) that runs the `validate_query`
   sync action against the row's current `service` / `entity_set` / query options (see Sync actions).
@@ -258,7 +257,7 @@ Case, descriptions Sentence case, all English.
   catalog is unavailable. Missing/invalid connection → return a guidance item `{"value":"","label":…}`
   (exit 0), not a crash.
 - `list_entitysets` — parse the service `$metadata` (EDMX) → entity sets.
-- `list_columns` — parse `$metadata` → properties (+ nav-props for `$expand`).
+- `list_columns` — parse `$metadata` → scalar properties only (nav-props excluded; `$select` rejects them).
 - `list_primary_keys` — EDMX entity `Key` → ranked PK candidates.
 - `list_incremental_fields` — properties ranked by datetime type + name heuristics (e.g. `EntryDate`).
 

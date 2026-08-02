@@ -20,6 +20,15 @@ _MAX_PAGES = 100_000
 _BACKOFF_BASE_S = 1.0
 _BACKOFF_CAP_S = 60.0
 
+# Server-side access (Permission Sets, Allowed Companies) is provisioned inside
+# IFS on the service account, not in this component — a 403 means that grant is
+# missing, so surface an actionable hint rather than an opaque "403".
+_FORBIDDEN_HINT = (
+    "IFS returned 403 — the service account may be missing a Permission Set "
+    "(e.g. IFSREADONLYSUPPORT) or the company is not in its Allowed Companies. "
+    "These are configured inside IFS on the service account, not in this component."
+)
+
 
 class IfsODataClient:
     """Reads OData collections and per-service metadata from IFS Cloud."""
@@ -58,7 +67,6 @@ class IfsODataClient:
         select: list[str] | None = None,
         filter: str | None = None,
         orderby: str | None = None,
-        expand: str | None = None,
         top: int | None = None,
         skip: int | None = None,
     ) -> str:
@@ -69,8 +77,6 @@ class IfsODataClient:
             options["$filter"] = filter
         if orderby:
             options["$orderby"] = orderby
-        if expand:
-            options["$expand"] = expand
         if top is not None:
             options["$top"] = str(top)
         if skip is not None:
@@ -95,7 +101,6 @@ class IfsODataClient:
         select: list[str] | None = None,
         filter: str | None = None,
         orderby: str | None = None,
-        expand: str | None = None,
         strip_meta: bool = True,
     ) -> Iterator[dict]:
         """Stream all rows of an entity set, following server paging.
@@ -111,7 +116,6 @@ class IfsODataClient:
             select=select,
             filter=filter,
             orderby=orderby,
-            expand=expand,
             top=self._page_size,
         )
         skip = 0
@@ -135,7 +139,6 @@ class IfsODataClient:
                     select=select,
                     filter=filter,
                     orderby=orderby,
-                    expand=expand,
                     top=self._page_size,
                     skip=skip,
                 )
@@ -229,5 +232,7 @@ class IfsODataClient:
             detail = message or error.get("code", "")
         except ValueError, AttributeError:
             detail = ""
+        if code == 403:
+            return f"{_FORBIDDEN_HINT}{f' (details: {detail})' if detail else ''}"
         suffix = f": {detail}" if detail else ""
         return f"IFS request failed ({code}){suffix}"

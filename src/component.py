@@ -82,7 +82,20 @@ class Component(ComponentBase):
         query_filter = self._build_filter(row, meta, previous_state)
         table, watermark, count = self._extract(row, meta, query_filter)
         self._finalize(row, table, watermark, count, previous_state)
-        logger.info("Extracted %d rows from %s/%s.", count, row.service, row.entity_set)
+        self._log_extract_result(row, count)
+
+    @staticmethod
+    def _log_extract_result(row: RowConfiguration, count: int) -> None:
+        if count == 0:
+            logger.warning(
+                "Extracted 0 rows from %s/%s. IFS data is company-scoped — confirm the intended "
+                "companies are in the service account's Allowed Companies inside IFS. An empty result "
+                "is not an error.",
+                row.service,
+                row.entity_set,
+            )
+        else:
+            logger.info("Extracted %d rows from %s/%s.", count, row.service, row.entity_set)
 
     def _require_config(self) -> Configuration:
         if self._config is None:
@@ -150,7 +163,6 @@ class Component(ComponentBase):
                 select=selected,
                 filter=query_filter,
                 orderby=row.order_by,
-                expand=row.expand,
                 strip_meta=not row.keep_meta_fields,
             ):
                 writer.writerow(record)
@@ -245,13 +257,15 @@ class Component(ComponentBase):
 
     @sync_action("list_columns")
     def list_columns(self) -> list[SelectElement]:
-        """Populate the column ($select) dropdown, including nav-props for $expand."""
+        """Populate the column ($select) dropdown with scalar EDMX properties only.
+
+        Navigation properties are intentionally excluded — OData ``$select``
+        rejects them with a 400.
+        """
         meta = self._selected_entity_meta()
         if meta is None:
             return [self._guidance("Select a service and entity set first.")]
-        items = [SelectElement(value=p.name, label=p.name) for p in meta.properties]
-        items += [SelectElement(value=nav, label=f"{nav} (navigation)") for nav in meta.nav_properties]
-        return items
+        return [SelectElement(value=p.name, label=p.name) for p in meta.properties]
 
     @sync_action("list_primary_keys")
     def list_primary_keys(self) -> list[SelectElement]:
@@ -271,6 +285,8 @@ class Component(ComponentBase):
         return [SelectElement(value=name, label=name) for name in rank_incremental_fields(meta.properties)]
 
     def _selected_entity_meta(self) -> EntityMeta | None:
+        # Raw .get() (not a parsed RowConfiguration) is deliberate: discovery runs on
+        # in-progress config where required row fields (entity_set, PK) aren't set yet.
         params = self.configuration.parameters or {}
         service = params.get("service")
         entity_set = params.get("entity_set")
@@ -292,9 +308,6 @@ class Component(ComponentBase):
         return SelectElement(value="", label=label)
 
 
-"""
-        Main entrypoint
-"""
 if __name__ == "__main__":
     try:
         comp = Component()

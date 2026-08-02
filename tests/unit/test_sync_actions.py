@@ -100,13 +100,14 @@ def test_list_entitysets_from_metadata(tmp_path, monkeypatch):
     assert set(_values(items)) == {"VoucherRowSet", "AccountSet"}
 
 
-def test_list_columns_includes_navprops(tmp_path, monkeypatch):
+def test_list_columns_scalar_properties_only(tmp_path, monkeypatch):
     monkeypatch.setattr(odata.IfsODataClient, "get_metadata", lambda self, service: FIXTURE.read_text(encoding="utf-8"))
     comp = _component(tmp_path, monkeypatch, {**CONN, "service": "VoucherRowsAnalysis", "entity_set": "VoucherRowSet"})
     values = _values(comp.list_columns())
     assert "Company" in values
     assert "EntryDate" in values
-    assert "AccountRef" in values  # navigation property offered for $expand
+    # navigation properties are excluded — OData $select rejects them with a 400
+    assert "AccountRef" not in values
 
 
 def test_list_primary_keys_keys_first(tmp_path, monkeypatch):

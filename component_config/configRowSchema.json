@@ -47,7 +47,7 @@
       },
       "propertyOrder": 30,
       "options": {
-        "tooltip": "OData `$select`. Leave empty to fetch all columns, including navigation properties needed by `$expand`.",
+        "tooltip": "OData `$select`. Leave empty to fetch all columns.",
         "async": {
           "label": "Load Columns",
           "action": "list_columns"
@@ -70,15 +70,6 @@
       "propertyOrder": 50,
       "options": {
         "tooltip": "OData `$orderby` expression, e.g. `EntryDate desc`."
-      }
-    },
-    "expand": {
-      "type": "string",
-      "title": "Expand",
-      "description": "OData expand expression for related entities",
-      "propertyOrder": 60,
-      "options": {
-        "tooltip": "OData `$expand` expression to denormalize related entities into the output, e.g. `CustomerAddress`. Off by default, since expanding increases payload size."
       }
     },
     "keep_meta_fields": {

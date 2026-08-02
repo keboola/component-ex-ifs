@@ -80,7 +80,6 @@ class RowConfiguration(BaseModel):
     load_type: LoadType = LoadType.incremental_load
     filter: str | None = None
     order_by: str | None = None
-    expand: str | None = None
     keep_meta_fields: bool = False
 
     def __init__(self, **data):

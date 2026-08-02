@@ -2,12 +2,7 @@
   "storage": {
     "input": {
       "files": [],
-      "tables": [
-        {
-          "source": "in.c-example.example",
-          "destination": "example.csv"
-        }
-      ]
+      "tables": []
     },
     "output": {
       "files": [],
@@ -15,7 +10,26 @@
     }
   },
   "parameters": {
-    "#api_token": "your-secret-token",
-    "debug": false
+    "tenant_id": "acme",
+    "realm": "acme1",
+    "client_id": "ifs-extractor",
+    "#client_secret": "your-encrypted-client-secret",
+    "service_account": "svc_ifs_readonly",
+    "advanced": {
+      "base_path": "/main/ifsapplications/projection/v1",
+      "page_size": 1000,
+      "request_timeout": 60,
+      "max_retries": 5
+    },
+    "service": "VoucherRowsAnalysis",
+    "entity_set": "VoucherRowSet",
+    "columns": [],
+    "primary_key": ["Company", "VoucherNo"],
+    "fetch_type": "incremental_fetch",
+    "incremental_field": "EntryDate",
+    "load_type": "incremental_load",
+    "filter": "Company eq '100'",
+    "order_by": "EntryDate",
+    "keep_meta_fields": false
   }
 }

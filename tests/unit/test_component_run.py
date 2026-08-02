@@ -1,5 +1,6 @@
 import csv
 import json
+import logging
 from pathlib import Path
 
 import pytest
@@ -166,3 +167,17 @@ def test_forbidden_from_client_raises_userexception(tmp_path, monkeypatch):
 
     with pytest.raises(UserException):
         Component().run()
+
+
+def test_zero_rows_logs_allowed_company_warning(tmp_path, monkeypatch, caplog):
+    monkeypatch.setenv("KBC_DATA_TYPE_SUPPORT", "authoritative")
+    datadir = _make_datadir(tmp_path, {**BASE_PARAMS, "load_type": "full_load"})
+    monkeypatch.setenv("KBC_DATADIR", str(datadir))
+    _patch_client(monkeypatch, rows=[])  # successful run, zero rows
+
+    from component import Component
+
+    with caplog.at_level(logging.WARNING):
+        Component().run()
+
+    assert any("Allowed Companies" in record.getMessage() for record in caplog.records)

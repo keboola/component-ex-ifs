@@ -65,12 +65,23 @@ def test_iter_rows_applies_query_options(stub_session, auth_stub):
     assert "%24filter" in url or "$filter=A" in url
 
 
-def test_forbidden_raises_userexception_with_message(stub_session, auth_stub):
+def test_forbidden_raises_userexception_with_allowed_company_hint(stub_session, auth_stub):
     stub_session.enqueue_json({"error": {"code": "forbidden", "message": "No allowed company"}}, status_code=403)
     client = make_client(stub_session, auth_stub)
     with pytest.raises(UserException) as exc:
         list(client.iter_rows("Svc", "Set"))
-    assert "No allowed company" in str(exc.value)
+    message = str(exc.value)
+    assert "403" in message
+    assert "Allowed Companies" in message  # actionable diagnostic
+    assert "Permission Set" in message
+
+
+def test_validate_query_403_returns_actionable_hint(stub_session, auth_stub):
+    stub_session.enqueue_json({"error": {"message": "denied"}}, status_code=403)
+    client = make_client(stub_session, auth_stub)
+    ok, message = client.validate_query("Svc", "Set")
+    assert ok is False
+    assert "Allowed Companies" in message
 
 
 def test_bad_filter_400_surfaces_odata_message(stub_session, auth_stub):
