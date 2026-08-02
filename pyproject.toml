@@ -23,6 +23,10 @@ dev = [
 
 [tool.ruff]
 line-length = 120
+# Design/plan docs under docs/superpowers are process artifacts, not source — their
+# illustrative code snippets must not be reformatted/linted by ruff (0.16+ formats
+# code blocks inside Markdown, which otherwise breaks the repo-wide pre-commit hooks).
+extend-exclude = ["docs/superpowers"]
 
 [tool.ruff.lint]
 extend-select = [
