@@ -89,8 +89,14 @@ class IfsODataClient:
 
     # --- public reads --------------------------------------------------
     def get_metadata(self, service: str) -> str:
-        """Return the raw EDMX ``$metadata`` document for a service."""
-        resp = self._request(f"{self.service_url(service)}/$metadata")
+        """Return the raw EDMX ``$metadata`` document for a service.
+
+        Requests XML EDMX explicitly. IFS Cloud honours OData 4.01 JSON CSDL:
+        with ``Accept: application/json`` the ``$metadata`` endpoint returns a
+        JSON schema document, which the EDMX (XML) parser cannot read. Asking
+        for ``application/xml`` yields the ``edmx:Edmx`` document the parser expects.
+        """
+        resp = self._request(f"{self.service_url(service)}/$metadata", accept="application/xml")
         return resp.text
 
     def iter_rows(
@@ -188,13 +194,13 @@ class IfsODataClient:
     def _strip(row: dict) -> dict:
         return {key: value for key, value in row.items() if key not in _META_FIELDS and not key.startswith("@odata.")}
 
-    def _request(self, url: str) -> requests.Response:
+    def _request(self, url: str, *, accept: str = "application/json") -> requests.Response:
         auth_retried = False
         backoff_attempt = 0
         while True:
             headers = {
                 "Authorization": f"Bearer {self._auth.get_token()}",
-                "Accept": "application/json",
+                "Accept": accept,
             }
             resp = self._session.get(url, headers=headers, timeout=self._timeout)
             code = resp.status_code
