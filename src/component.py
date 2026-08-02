@@ -12,12 +12,13 @@ import sys
 from collections import OrderedDict
 from datetime import UTC, datetime
 
-from keboola.component.base import ComponentBase
+from keboola.component.base import ComponentBase, sync_action
 from keboola.component.dao import ColumnDefinition, TableDefinition
 from keboola.component.exceptions import UserException
+from keboola.component.sync_actions import MessageType, SelectElement, ValidationResult
 
 from client.auth import IfsAuthClient
-from client.metadata import EntityMeta, parse_metadata
+from client.metadata import EntityMeta, parse_metadata, rank_incremental_fields
 from client.odata import IfsODataClient
 from client.schema import build_column_schema, format_filter_literal
 from configuration import Configuration, FetchType, RowConfiguration
@@ -31,6 +32,7 @@ class Component(ComponentBase):
     def __init__(self):
         super().__init__()
         self._config: Configuration | None = None
+        self._auth: IfsAuthClient | None = None
         self._client: IfsODataClient | None = None
         self._init_clients()
 
@@ -38,15 +40,17 @@ class Component(ComponentBase):
         """Build the auth + OData clients if the connection config is valid.
 
         Tolerates partial config (a sync action invoked before the connection
-        is filled): leaves the client unbuilt so those actions can degrade to a
+        is filled): leaves the clients unbuilt so those actions can degrade to a
         guidance item instead of crashing.
         """
         try:
             self._config = Configuration(**(self.configuration.parameters or {}))
         except UserException:
             self._config = None
+            self._auth = None
+            self._client = None
             return
-        auth = IfsAuthClient(
+        self._auth = IfsAuthClient(
             host=self._config.host,
             realm=self._config.realm,
             client_id=self._config.client_id,
@@ -56,7 +60,7 @@ class Component(ComponentBase):
         self._client = IfsODataClient(
             host=self._config.host,
             base_path=self._config.base_path,
-            auth=auth,
+            auth=self._auth,
             page_size=self._config.page_size,
             timeout=self._config.request_timeout,
             max_retries=self._config.max_retries,
@@ -181,6 +185,110 @@ class Component(ComponentBase):
         if row.fetch_type == FetchType.incremental_fetch:
             state["last_value"] = watermark if watermark is not None else previous_state.get("last_value")
         self.write_state_file(state)
+
+    # --- sync actions --------------------------------------------------
+    @sync_action("testConnection")
+    def test_connection(self) -> ValidationResult:
+        """Validate the connection by exchanging a token."""
+        self._require_auth().get_token()
+        return ValidationResult("Successfully connected to IFS.", MessageType.SUCCESS)
+
+    def _require_auth(self) -> IfsAuthClient:
+        """Return a built auth client, raising a clear error if config is incomplete."""
+        self._require_config()
+        if self._auth is None:
+            self._init_clients()
+        if self._auth is None:  # pragma: no cover - config validated just above
+            raise UserException("The connection is not configured. Fill in tenant, realm, client id and secret.")
+        return self._auth
+
+    @sync_action("validate_query")
+    def validate_query(self) -> ValidationResult:
+        """Validate a row's assembled OData query with a cheap ``$top=1`` GET."""
+        params = self.configuration.parameters or {}
+        service = params.get("service")
+        entity_set = params.get("entity_set")
+        if self._client is None or not service or not entity_set:
+            return ValidationResult("Fill in the connection, service and entity set first.", MessageType.WARNING)
+        ok, message = self.client.validate_query(
+            service,
+            entity_set,
+            select=params.get("columns") or None,
+            filter=params.get("filter") or None,
+            orderby=params.get("order_by") or None,
+        )
+        return ValidationResult(message, MessageType.SUCCESS if ok else MessageType.ERROR)
+
+    @sync_action("list_services")
+    def list_services(self) -> list[SelectElement]:
+        """Populate the service dropdown from the tenant projection catalog."""
+        if self._client is None:
+            return [self._guidance("Fill in the connection first, then reload.")]
+        try:
+            projections = self.client.list_projections()
+        except UserException:
+            return [self._guidance("Catalog unavailable — type the service name manually.")]
+        items = [
+            SelectElement(value=name, label=name) for name in (self._projection_name(p) for p in projections) if name
+        ]
+        return items or [self._guidance("No services returned — type the service name manually.")]
+
+    @sync_action("list_entitysets")
+    def list_entitysets(self) -> list[SelectElement]:
+        """Populate the entity-set dropdown from the service metadata."""
+        service = (self.configuration.parameters or {}).get("service")
+        if self._client is None or not service:
+            return [self._guidance("Select a service first.")]
+        entity_sets = parse_metadata(self.client.get_metadata(service))
+        return [SelectElement(value=name, label=name) for name in sorted(entity_sets)]
+
+    @sync_action("list_columns")
+    def list_columns(self) -> list[SelectElement]:
+        """Populate the column ($select) dropdown, including nav-props for $expand."""
+        meta = self._selected_entity_meta()
+        if meta is None:
+            return [self._guidance("Select a service and entity set first.")]
+        items = [SelectElement(value=p.name, label=p.name) for p in meta.properties]
+        items += [SelectElement(value=nav, label=f"{nav} (navigation)") for nav in meta.nav_properties]
+        return items
+
+    @sync_action("list_primary_keys")
+    def list_primary_keys(self) -> list[SelectElement]:
+        """Populate the primary-key dropdown, EDMX key columns ranked first."""
+        meta = self._selected_entity_meta()
+        if meta is None:
+            return [self._guidance("Select a service and entity set first.")]
+        ranked = meta.keys + [p.name for p in meta.properties if p.name not in meta.keys]
+        return [SelectElement(value=name, label=name) for name in ranked]
+
+    @sync_action("list_incremental_fields")
+    def list_incremental_fields(self) -> list[SelectElement]:
+        """Populate the incremental-field dropdown, datetime columns ranked first."""
+        meta = self._selected_entity_meta()
+        if meta is None:
+            return [self._guidance("Select a service and entity set first.")]
+        return [SelectElement(value=name, label=name) for name in rank_incremental_fields(meta.properties)]
+
+    def _selected_entity_meta(self) -> EntityMeta | None:
+        params = self.configuration.parameters or {}
+        service = params.get("service")
+        entity_set = params.get("entity_set")
+        if self._client is None or not service or not entity_set:
+            return None
+        return parse_metadata(self.client.get_metadata(service)).get(entity_set)
+
+    @staticmethod
+    def _projection_name(projection: dict) -> str | None:
+        for key in ("Name", "name", "Projection", "ProjectionName", "EntityName", "Service"):
+            value = projection.get(key)
+            if value:
+                return str(value)
+        return None
+
+    @staticmethod
+    def _guidance(label: str) -> SelectElement:
+        """A non-selectable dropdown item used when a precondition is missing."""
+        return SelectElement(value="", label=label)
 
 
 """

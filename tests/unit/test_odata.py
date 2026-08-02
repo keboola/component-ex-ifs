@@ -118,3 +118,27 @@ def test_list_projections_pages_and_returns_dicts(stub_session, auth_stub):
     client = make_client(stub_session, auth_stub)
     projections = client.list_projections()
     assert projections == [{"Name": "VoucherRowsAnalysis"}, {"Name": "OtherService"}]
+
+
+def test_validate_query_ok_on_200(stub_session, auth_stub):
+    stub_session.enqueue_json({"value": [{"A": 1}]})
+    client = make_client(stub_session, auth_stub)
+    ok, message = client.validate_query("Svc", "Set", select=["A"], filter="A gt 1")
+    assert ok is True
+    assert "valid" in message.lower()
+    assert "$top=1" in stub_session.get_urls[0]
+
+
+def test_validate_query_returns_odata_error_on_400(stub_session, auth_stub):
+    stub_session.enqueue_json({"error": {"message": {"lang": "en", "value": "Invalid filter clause"}}}, status_code=400)
+    client = make_client(stub_session, auth_stub)
+    ok, message = client.validate_query("Svc", "Set", filter="bad filter")
+    assert ok is False
+    assert "Invalid filter clause" in message
+
+
+def test_validate_query_raises_on_transport_error(stub_session, auth_stub):
+    stub_session.enqueue_json({}, status_code=503)
+    client = make_client(stub_session, auth_stub)
+    with pytest.raises(UserException):
+        client.validate_query("Svc", "Set")

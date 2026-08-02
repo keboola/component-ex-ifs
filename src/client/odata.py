@@ -146,6 +146,40 @@ class IfsODataClient:
         """Return the tenant projection catalog (``AllProjections.svc/Projections``)."""
         return list(self.iter_rows("AllProjections", "Projections"))
 
+    def validate_query(
+        self,
+        service: str,
+        entity_set: str,
+        *,
+        select: list[str] | None = None,
+        filter: str | None = None,
+        orderby: str | None = None,
+    ) -> tuple[bool, str]:
+        """Cheaply validate a query with a single ``$top=1`` GET.
+
+        Returns ``(True, message)`` on HTTP 200 and ``(False, odata_message)``
+        on a 4xx OData validation error (bad ``$filter``, unknown column). Raises
+        ``UserException`` only on a genuine transport/server error.
+        """
+        url = self._collection_url(service, entity_set, select=select, filter=filter, orderby=orderby, top=1)
+        auth_retried = False
+        while True:
+            headers = {
+                "Authorization": f"Bearer {self._auth.get_token()}",
+                "Accept": "application/json",
+            }
+            resp = self._session.get(url, headers=headers, timeout=self._timeout)
+            if resp.status_code == 401 and not auth_retried:
+                self._auth.invalidate()
+                auth_retried = True
+                continue
+            break
+        if resp.status_code == 200:
+            return True, "Query is valid."
+        if 400 <= resp.status_code < 500:
+            return False, self._error_message(resp, resp.status_code)
+        raise UserException(f"IFS request failed ({resp.status_code}) while validating the query.")
+
     # --- internals -----------------------------------------------------
     @staticmethod
     def _strip(row: dict) -> dict:
