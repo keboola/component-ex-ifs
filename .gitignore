@@ -1,0 +1,29 @@
+__pycache__/
+.DS_Store
+.idea
+.ruff_cache
+.venv
+.vscode
+*.py[cod]
+*.egg-info
+venv
+.claude
+.DS_Store
+
+# kbc datafolder
+/data
+
+# vcr datadirtesting
+secrets.json
+tests/functional/*/source/data/out/
+tests/functional/*/source/data/in/
+
+# component-factory build artifacts (never committed)
+docs/superpowers/*-lifecycle.md
+.claude/loop.md
+
+# internal design/reference docs — contain a specific tenant, kept local, never committed
+docs/2026-07-30-ex-ifs-design.md
+docs/2026-08-02-ex-ifs-research.md
+docs/VoucherRowsAnalysis.md
+VoucherRowsAnalysis.openapi.json
