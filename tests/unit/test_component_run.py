@@ -74,7 +74,8 @@ def _patch_client(monkeypatch, rows=ROWS, captured=None):
 def _read_csv(path: Path) -> tuple[list[str], list[dict]]:
     with open(path, encoding="utf-8") as f:
         reader = csv.DictReader(f)
-        return list(reader.fieldnames), list(reader)
+        fieldnames = list(reader.fieldnames or [])
+        return fieldnames, list(reader)
 
 
 def test_full_fetch_writes_rows_and_schema_manifest(tmp_path, monkeypatch):

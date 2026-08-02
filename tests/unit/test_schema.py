@@ -1,7 +1,14 @@
-from keboola.component.dao import SupportedDataTypes
+from keboola.component.dao import ColumnDefinition, DataType, SupportedDataTypes
 
 from client.metadata import EntityMeta, PropertyMeta
 from client.schema import build_column_schema, format_filter_literal
+
+
+def _base(column: ColumnDefinition) -> DataType:
+    """Return a column's base DataType, narrowing the library's Optional field."""
+    data_types = column.data_types
+    assert data_types is not None
+    return data_types["base"]
 
 
 def _entity() -> EntityMeta:
@@ -22,10 +29,10 @@ def _entity() -> EntityMeta:
 def test_build_column_schema_all_columns_base_types():
     schema = build_column_schema(_entity(), None)
     assert list(schema.keys()) == ["Company", "VoucherNo", "Amount", "RowNo", "EntryDate"]
-    assert schema["Company"].data_types["base"].dtype == SupportedDataTypes.STRING
-    assert schema["Amount"].data_types["base"].dtype == SupportedDataTypes.NUMERIC
-    assert schema["RowNo"].data_types["base"].dtype == SupportedDataTypes.INTEGER
-    assert schema["EntryDate"].data_types["base"].dtype == SupportedDataTypes.DATE
+    assert _base(schema["Company"]).dtype == SupportedDataTypes.STRING
+    assert _base(schema["Amount"]).dtype == SupportedDataTypes.NUMERIC
+    assert _base(schema["RowNo"]).dtype == SupportedDataTypes.INTEGER
+    assert _base(schema["EntryDate"]).dtype == SupportedDataTypes.DATE
 
 
 def test_build_column_schema_respects_selection():
@@ -43,7 +50,7 @@ def test_build_column_schema_marks_primary_key_and_nullable():
 
 def test_build_column_schema_decimal_precision_scale_length():
     schema = build_column_schema(_entity(), None)
-    assert schema["Amount"].data_types["base"].length == "20,2"
+    assert _base(schema["Amount"]).length == "20,2"
 
 
 def test_format_filter_literal_types():
