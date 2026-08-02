@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<edmx:Edmx Version="4.0" xmlns:edmx="http://docs.oasis-open.org/odata/ns/edmx">
+  <edmx:DataServices>
+    <Schema xmlns="http://docs.oasis-open.org/odata/ns/edm" Namespace="IFS.Projections">
+      <EntityType Name="VoucherRow">
+        <Key>
+          <PropertyRef Name="Company"/>
+          <PropertyRef Name="VoucherNo"/>
+        </Key>
+        <Property Name="Company" Type="Edm.String" Nullable="false"/>
+        <Property Name="VoucherNo" Type="Edm.String" Nullable="false"/>
+        <Property Name="RowNo" Type="Edm.Int64" Nullable="true"/>
+        <Property Name="Amount" Type="Edm.Decimal" Precision="20" Scale="2" Nullable="true"/>
+        <Property Name="Rate" Type="Edm.Double" Nullable="true"/>
+        <Property Name="EntryDate" Type="Edm.Date" Nullable="true"/>
+        <Property Name="ChangedTimestamp" Type="Edm.DateTimeOffset" Nullable="true"/>
+        <Property Name="Approved" Type="Edm.Boolean" Nullable="true"/>
+        <NavigationProperty Name="AccountRef" Type="IFS.Projections.Account"/>
+      </EntityType>
+      <EntityType Name="Account">
+        <Key>
+          <PropertyRef Name="AccountNo"/>
+        </Key>
+        <Property Name="AccountNo" Type="Edm.String" Nullable="false"/>
+        <Property Name="Description" Type="Edm.String" Nullable="true"/>
+      </EntityType>
+      <EntityContainer Name="Container">
+        <EntitySet Name="VoucherRowSet" EntityType="IFS.Projections.VoucherRow"/>
+        <EntitySet Name="AccountSet" EntityType="IFS.Projections.Account"/>
+      </EntityContainer>
+    </Schema>
+  </edmx:DataServices>
+</edmx:Edmx>
