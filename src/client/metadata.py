@@ -136,7 +136,7 @@ def parse_metadata(edmx_xml: str) -> dict[str, EntityMeta]:
 
 
 def rank_incremental_fields(props: list[PropertyMeta]) -> list[str]:
-    """Rank property names as incremental-watermark candidates.
+    """Rank property names as Date Field candidates (date/timestamp columns).
 
     TIMESTAMP-typed columns first, then DATE-typed, then columns whose name
     hints at a change stamp, then everything else — original order preserved

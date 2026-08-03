@@ -3,7 +3,7 @@
 Pure functions (no I/O) so they unit-test without the platform. The schema is
 the authoritative ``data_type.base.type`` form; ``format_filter_literal`` renders
 a value into an OData ``$filter`` literal respecting its EDM type (used to build
-the incremental ``gt`` watermark clause).
+the Date-window ``ge`` / ``lt`` bound clauses).
 """
 
 from collections import OrderedDict

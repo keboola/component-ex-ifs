@@ -4,12 +4,6 @@
   "logs": [
     {
       "level": "INFO",
-      "logger": "root",
-      "message": "Loading state file..",
-      "timestamp": "2026-08-02T21:53:15.000Z"
-    },
-    {
-      "level": "INFO",
       "logger": "__main__",
       "message": "Extracted 142 rows from VoucherRowsAnalysis/VoucherRowSet.",
       "timestamp": "2026-08-02T21:53:15.000Z"

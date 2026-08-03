@@ -5,13 +5,11 @@
     "realm": "acme1",
     "client_id": "acme_client",
     "#client_secret": "DUMMY_SECRET",
-    "service_account": "svc_account",
     "service": "NoSuchServiceXyz",
     "entity_set": "VoucherRowSet",
     "primary_key": [
       "Company"
     ],
-    "fetch_type": "full_fetch",
     "load_type": "full_load"
   }
 }

@@ -2,8 +2,9 @@
 
 ``run()`` is a thin orchestrator delegating to private methods; the HTTP/auth
 and metadata concerns live in the ``client`` package. One config row -> one
-output table, with live EDMX schema discovery, native types, and an incremental
-``gt`` watermark persisted to ``state.json`` after a successful write.
+output table, with live EDMX schema discovery, native types, and a stateless,
+customer-driven Date window (``date_field`` + ``date_start`` / ``date_end``)
+that bounds the server-side ``$filter`` — recomputed each run, no stored cursor.
 """
 
 import csv
@@ -24,7 +25,7 @@ from client.auth import IfsAuthClient
 from client.metadata import EntityMeta, edm_to_base_type, parse_metadata, rank_incremental_fields
 from client.odata import IfsODataClient
 from client.schema import build_column_schema, format_filter_literal
-from configuration import Configuration, FetchType, RowConfiguration
+from configuration import Configuration, RowConfiguration
 
 logger = logging.getLogger(__name__)
 
@@ -211,11 +212,10 @@ class Component(ComponentBase):
         """Extract one entity set into one output table (thin orchestrator)."""
         self._require_config()
         row = self._parse_row()
-        previous_state = self.get_state_file() or {}
         meta = self._discover(row)
-        query_filter = self._build_filter(row, meta, previous_state)
-        table, watermark, count = self._extract(row, meta, query_filter)
-        self._finalize(row, table, watermark, count, previous_state)
+        query_filter = self._build_filter(row, meta)
+        table, count = self._extract(row, meta, query_filter)
+        self._finalize(table, count)
         self._log_extract_result(row, count)
 
     @staticmethod
@@ -256,36 +256,30 @@ class Component(ComponentBase):
                 return prop.edm_type
         return "Edm.String"
 
-    def _build_filter(self, row: RowConfiguration, meta: EntityMeta, state: dict) -> str | None:
-        """Combine the user ``$filter`` with the incremental lower/upper bounds.
+    def _build_filter(self, row: RowConfiguration, meta: EntityMeta) -> str | None:
+        """Combine the user ``$filter`` with the customer-driven Date window.
 
-        Lower-bound precedence (the override contract):
-        - ``date_from`` set -> ``{inc_field} ge {date_from}`` and the stored
-          watermark is IGNORED for the lower bound, so history can be re-pulled or
-          a backfill batched (a forward-only watermark alone is insufficient).
-        - else, incremental fetch with a stored watermark -> hands-off
-          ``{inc_field} gt {last_value}``.
+        The window is stateless — recomputed each run from the config, never from
+        a stored cursor:
+        - ``date_start`` set -> ``{date_field} ge {resolved_start}`` (lower bound).
+        - ``date_end`` set -> ``{date_field} lt {resolved_end}`` (upper bound).
 
-        ``date_to`` (when set) adds the upper bound ``{inc_field} lt {date_to}``
-        for moving windows / splitting a backfill into batches. All bounds are
-        ANDed with the user ``filter``. ``date_from``/``date_to`` accept relative
-        (``5 days ago``, ``today``) or absolute (``YYYY-MM-DD``) values, resolved
-        to a concrete UTC value at run time and formatted for the field's EDM type.
+        Both bounds require ``date_field`` (enforced in ``RowConfiguration``) and
+        are ANDed with the user ``filter``. ``date_start``/``date_end`` accept
+        relative (``5 days ago``, ``today``) or absolute (``YYYY-MM-DD`` / ISO)
+        values, resolved to a concrete UTC value at run time and formatted for the
+        field's EDM type. An empty window fetches everything.
         """
         clauses: list[str] = []
         if row.filter:
             clauses.append(row.filter)
-        inc_field = row.incremental_field
-        if row.fetch_type == FetchType.incremental_fetch and inc_field:
-            edm_type = self._edm_type_of(meta, inc_field)
-            if row.date_from:
-                clauses.append(f"{inc_field} ge {self._resolve_bound_literal(row.date_from, edm_type)}")
-            else:
-                last_value = state.get("last_value")
-                if last_value is not None:
-                    clauses.append(f"{inc_field} gt {format_filter_literal(edm_type, last_value)}")
-            if row.date_to:
-                clauses.append(f"{inc_field} lt {self._resolve_bound_literal(row.date_to, edm_type)}")
+        date_field = row.date_field
+        if date_field:
+            edm_type = self._edm_type_of(meta, date_field)
+            if row.date_start:
+                clauses.append(f"{date_field} ge {self._resolve_bound_literal(row.date_start, edm_type)}")
+            if row.date_end:
+                clauses.append(f"{date_field} lt {self._resolve_bound_literal(row.date_end, edm_type)}")
         if not clauses:
             return None
         if len(clauses) == 1:
@@ -294,12 +288,12 @@ class Component(ComponentBase):
 
     @staticmethod
     def _resolve_bound_literal(raw: str, edm_type: str) -> str:
-        """Resolve a relative/absolute ``date_from``/``date_to`` to a filter literal.
+        """Resolve a relative/absolute ``date_start``/``date_end`` to a filter literal.
 
         The value is parsed (relative anchored to ``now`` in UTC) then rendered in
-        the shape the incremental field's EDM type expects (``YYYY-MM-DD`` for a
-        date, ISO-8601 ``…Z`` for a timestamp) before ``format_filter_literal``
-        applies OData quoting rules.
+        the shape the Date Field's EDM type expects (``YYYY-MM-DD`` for a date,
+        ISO-8601 ``…Z`` for a timestamp) before ``format_filter_literal`` applies
+        OData quoting rules.
         """
         base = datetime.now(tz=UTC).replace(tzinfo=None)
         parsed = dateparser.parse(
@@ -320,8 +314,8 @@ class Component(ComponentBase):
 
     def _extract(
         self, row: RowConfiguration, meta: EntityMeta, query_filter: str | None
-    ) -> tuple[TableDefinition, object | None, int]:
-        """Stream rows to CSV, tracking the max incremental_field value."""
+    ) -> tuple[TableDefinition, int]:
+        """Stream rows to CSV, returning the table definition and row count."""
         selected = self._effective_select(row)
         schema: OrderedDict[str, ColumnDefinition] = build_column_schema(
             meta, selected, primary_key=row.primary_key, keep_meta_fields=row.keep_meta_fields
@@ -333,8 +327,6 @@ class Component(ComponentBase):
             incremental=row.incremental,
             has_header=True,
         )
-        watermark_field = row.incremental_field if row.fetch_type == FetchType.incremental_fetch else None
-        watermark: object | None = None
         count = 0
         with open(table.full_path, "w", encoding="utf-8", newline="") as out_file:
             writer = csv.DictWriter(out_file, fieldnames=list(schema.keys()), extrasaction="ignore")
@@ -349,60 +341,27 @@ class Component(ComponentBase):
             ):
                 writer.writerow(record)
                 count += 1
-                watermark = self._advance_watermark(watermark, record, watermark_field)
-        return table, watermark, count
+        return table, count
 
     @staticmethod
     def _effective_select(row: RowConfiguration) -> list[str] | None:
         """Compute the effective ``$select`` sent to extraction.
 
-        An empty ``columns`` means "all columns" (``None``). When the user
-        restricts columns for an incremental fetch but omits the incremental
-        field, the response rows would never carry it, so ``_advance_watermark``
-        would keep seeing ``None`` and the watermark would never advance
-        (re-fetching the same window forever). Force-include the incremental
-        field in the effective select (dedupe, order-preserving) without
-        mutating the user's stored config.
+        An empty ``columns`` means "all columns" (``None``); otherwise the user's
+        chosen columns are sent verbatim. The Date Field need not be selected —
+        OData ``$filter`` may reference a column outside ``$select``.
         """
-        columns = row.columns
-        if not columns:
-            return None
-        if (
-            row.fetch_type == FetchType.incremental_fetch
-            and row.incremental_field
-            and row.incremental_field not in columns
-        ):
-            return [*columns, row.incremental_field]
-        return list(columns)
+        return list(row.columns) if row.columns else None
 
-    @staticmethod
-    def _advance_watermark(current: object | None, record: dict, field: str | None) -> object | None:
-        if field is None:
-            return current
-        value = record.get(field)
-        if value is None:
-            return current
-        if current is None or value > current:
-            return value
-        return current
-
-    def _finalize(
-        self,
-        row: RowConfiguration,
-        table: TableDefinition,
-        watermark: object | None,
-        count: int,
-        previous_state: dict,
-    ) -> None:
-        """Write the manifest, then persist the advanced watermark state."""
+    def _finalize(self, table: TableDefinition, count: int) -> None:
+        """Write the manifest and an operational state file (no data cursor)."""
         self.write_manifest(table)
-        state: dict = {
-            "last_run": datetime.now(tz=UTC).isoformat(),
-            "records_extracted": count,
-        }
-        if row.fetch_type == FetchType.incremental_fetch:
-            state["last_value"] = watermark if watermark is not None else previous_state.get("last_value")
-        self.write_state_file(state)
+        self.write_state_file(
+            {
+                "last_run": datetime.now(tz=UTC).isoformat(),
+                "records_extracted": count,
+            }
+        )
 
     # --- sync actions --------------------------------------------------
     @sync_action("testConnection")
@@ -481,9 +440,9 @@ class Component(ComponentBase):
         ranked = meta.keys + [p.name for p in meta.properties if p.name not in meta.keys]
         return [SelectElement(value=name, label=name) for name in ranked]
 
-    @sync_action("list_incremental_fields")
-    def list_incremental_fields(self) -> list[SelectElement]:
-        """Populate the incremental-field dropdown, datetime columns ranked first."""
+    @sync_action("list_date_fields")
+    def list_date_fields(self) -> list[SelectElement]:
+        """Populate the Date Field dropdown, date/timestamp columns ranked first."""
         meta = self._selected_entity_meta()
         if meta is None:
             return [self._guidance("Select a service and entity set first.")]

@@ -31,9 +31,9 @@ Features
 | Generic, config-driven   | Any projection service / entity set via configuration — no per-service code. |
 | Row-based configuration  | One configuration row → one output table.                              |
 | OAuth 2.0 (`client_credentials`) | Machine-to-machine auth against the tenant's Keycloak, with mid-run token refresh. |
-| Live schema discovery    | Services, entity sets, columns, keys, and incremental fields via sync actions. |
+| Live schema discovery    | Services, entity sets, columns, keys, and date fields via sync actions. |
 | Native data types        | OData EDM → authoritative Keboola `schema` (decimal precision clamped to backend limits). |
-| Incremental loading       | Per-row `gt` watermark on a chosen column, stored in state and advanced after a successful write. |
+| Date window (stateless)  | Bound the fetch by a customer-chosen date field with an explicit Date Start / Date End; recomputed each run, no auto-advancing cursor — re-pull or backfill freely. |
 | Server-driven paging     | Follows `@odata.nextLink`, with a `$skip` fallback; streams rows (no full buffering). |
 
 Configuration
@@ -47,7 +47,6 @@ Configuration
 | `realm` | Keycloak realm. |
 | `client_id` | Confidential IAM Client id. |
 | `#client_secret` | IAM Client secret (encrypted). |
-| `service_account` | Optional — the IFS service-user identity, for operator reference. |
 | *Advanced* | Optional tuning: base path, page size, request timeout, max retries. |
 
 **Table (configuration row)**
@@ -58,19 +57,20 @@ Configuration
 | `entity_set` | Entity set within the service. |
 | `columns` | Optional `$select` — subset of columns (empty = all). |
 | `primary_key` | Primary key columns (required for incremental load). |
-| `fetch_type` | `full_fetch` or `incremental_fetch` (server-side `$filter` watermark). |
-| `incremental_field` | Cursor column (required for `incremental_fetch`). |
+| `date_field` | Date/timestamp column that Date Start / Date End filter on. |
+| `date_start` | Lower bound on the date field (`>=`). Relative (`5 days ago`, `today`) or absolute (`YYYY-MM-DD`). Empty = no lower bound. |
+| `date_end` | Upper bound on the date field (`<`), for moving windows or backfill batches. Empty = no upper bound. |
 | `load_type` | `full_load` or `incremental_load` (Keboola Storage write mode). |
-| `filter` | Optional additional OData `$filter`. |
+| `filter` | Optional additional OData `$filter` (ANDed with the Date window). |
 | `order_by` | Optional OData `$orderby`. |
 | `keep_meta_fields` | Keep the IFS meta-fields (`@odata.etag`, `luname`, `keyref`, `Objgrants`); off by default. |
 
-Sync actions (available in the UI): **Test Connection**, **Validate Query**, and dropdown loaders for services, entity sets, columns, primary keys, and incremental fields.
+Sync actions (available in the UI): **Test Connection**, **Validate Query**, and dropdown loaders for services, entity sets, columns, primary keys, and date fields.
 
 Output
 ======
 
-One table per configuration row, named after the entity set, with an authoritative `schema` manifest (native base types and primary key). Incremental rows upsert on the primary key; the watermark is persisted to component state and advanced only after a successful write.
+One table per configuration row, named after the entity set, with an authoritative `schema` manifest (native base types and primary key). Incremental rows upsert on the primary key. Fetching is stateless — the Date window is recomputed from the configuration each run; component state records only the last run time and row count, never a data cursor.
 
 Development
 -----------

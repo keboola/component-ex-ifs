@@ -1,7 +1,7 @@
 import pytest
 from keboola.component.exceptions import UserException
 
-from configuration import Configuration, FetchType, LoadType, RowConfiguration
+from configuration import Configuration, LoadType, RowConfiguration
 
 
 def test_root_config_parses_and_derives_host():
@@ -52,26 +52,24 @@ def test_nested_advanced_validation_error_raises_userexception():
         )
 
 
-def test_row_full_fetch_full_load_defaults_ok():
+def test_row_full_load_defaults_ok():
     row = RowConfiguration(
         service="VoucherRowsAnalysis",
         entity_set="VoucherRowSet",
         load_type=LoadType.full_load,
-        fetch_type=FetchType.full_fetch,
     )
     assert row.incremental is False
     assert row.columns == []
     assert row.primary_key == []
+    assert row.date_field is None
 
 
-def test_row_incremental_requires_fields_when_incremental():
+def test_row_incremental_load_with_pk_ok():
     row = RowConfiguration(
         service="VoucherRowsAnalysis",
         entity_set="VoucherRowSet",
         load_type=LoadType.incremental_load,
         primary_key=["Company"],
-        fetch_type=FetchType.incremental_fetch,
-        incremental_field="EntryDate",
     )
     assert row.incremental is True
 
@@ -81,50 +79,35 @@ def test_row_incremental_load_without_pk_raises():
         RowConfiguration(service="S", entity_set="E", load_type=LoadType.incremental_load)
 
 
-def test_row_incremental_fetch_without_field_raises():
-    with pytest.raises(UserException):
-        RowConfiguration(
-            service="S",
-            entity_set="E",
-            load_type=LoadType.full_load,
-            fetch_type=FetchType.incremental_fetch,
-        )
+def test_row_date_fields_default_none():
+    row = RowConfiguration(service="S", entity_set="E", load_type=LoadType.full_load)
+    assert row.date_field is None
+    assert row.date_start is None
+    assert row.date_end is None
 
 
-def test_row_incremental_fetch_with_full_load_raises():
-    """Delta fetch + full replace would overwrite the table with only the latest delta."""
-    with pytest.raises(UserException):
-        RowConfiguration(
-            service="S",
-            entity_set="E",
-            fetch_type=FetchType.incremental_fetch,
-            incremental_field="EntryDate",
-            load_type=LoadType.full_load,
-        )
-
-
-def test_row_incremental_fetch_with_incremental_load_ok():
-    """The safe accumulating combo (incremental fetch + incremental load) is allowed."""
+def test_row_date_fields_accept_relative_and_absolute_strings():
     row = RowConfiguration(
         service="S",
         entity_set="E",
-        fetch_type=FetchType.incremental_fetch,
-        incremental_field="EntryDate",
-        load_type=LoadType.incremental_load,
-        primary_key=["Company"],
-    )
-    assert row.incremental is True
-
-
-def test_row_full_fetch_with_full_load_ok():
-    """Full fetch + full load is a valid, non-lossy combination."""
-    row = RowConfiguration(
-        service="S",
-        entity_set="E",
-        fetch_type=FetchType.full_fetch,
         load_type=LoadType.full_load,
+        date_field="EntryDate",
+        date_start="5 days ago",
+        date_end="2024-12-31",
     )
-    assert row.incremental is False
+    assert row.date_field == "EntryDate"
+    assert row.date_start == "5 days ago"
+    assert row.date_end == "2024-12-31"
+
+
+def test_row_date_start_without_date_field_raises():
+    with pytest.raises(UserException):
+        RowConfiguration(service="S", entity_set="E", load_type=LoadType.full_load, date_start="2024-01-01")
+
+
+def test_row_date_end_without_date_field_raises():
+    with pytest.raises(UserException):
+        RowConfiguration(service="S", entity_set="E", load_type=LoadType.full_load, date_end="2024-12-31")
 
 
 def test_extra_fields_ignored():
@@ -143,22 +126,16 @@ def test_service_account_field_removed():
     assert not hasattr(cfg, "service_account")
 
 
-def test_row_date_window_fields_default_none():
-    row = RowConfiguration(service="S", entity_set="E", load_type=LoadType.full_load, fetch_type=FetchType.full_fetch)
-    assert row.date_from is None
-    assert row.date_to is None
-
-
-def test_row_date_window_fields_accept_relative_and_absolute_strings():
+def test_fetch_type_field_removed():
+    """fetch_type was redundant once the auto-advancing watermark was removed."""
+    assert "fetch_type" not in RowConfiguration.model_fields
+    # A legacy config still carrying it (and the old field names) must load fine.
     row = RowConfiguration(
         service="S",
         entity_set="E",
-        fetch_type=FetchType.incremental_fetch,
+        load_type=LoadType.full_load,
+        fetch_type="incremental_fetch",
         incremental_field="EntryDate",
-        load_type=LoadType.incremental_load,
-        primary_key=["Company"],
-        date_from="5 days ago",
-        date_to="2024-12-31",
     )
-    assert row.date_from == "5 days ago"
-    assert row.date_to == "2024-12-31"
+    assert not hasattr(row, "fetch_type")
+    assert not hasattr(row, "incremental_field")

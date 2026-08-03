@@ -8,8 +8,7 @@
         "tenant_id": "acme",
         "realm": "acme1",
         "client_id": "acme_client",
-        "#client_secret": "DUMMY_SECRET",
-        "service_account": "svc_account"
+        "#client_secret": "DUMMY_SECRET"
       }
     }
   },
@@ -23,7 +22,6 @@
         "realm": "acme1",
         "client_id": "acme_client",
         "#client_secret": "DUMMY_SECRET",
-        "service_account": "svc_account",
         "service": "VoucherRowsAnalysis",
         "entity_set": "VoucherRowSet",
         "columns": ["Company", "VoucherNo", "RowNo", "VoucherDate"]
@@ -40,7 +38,6 @@
         "realm": "acme1",
         "client_id": "acme_client",
         "#client_secret": "DUMMY_SECRET",
-        "service_account": "svc_account",
         "service": "VoucherRowsAnalysis"
       }
     }
@@ -55,7 +52,6 @@
         "realm": "acme1",
         "client_id": "acme_client",
         "#client_secret": "DUMMY_SECRET",
-        "service_account": "svc_account",
         "service": "VoucherRowsAnalysis",
         "entity_set": "VoucherRowSet"
       }
@@ -71,20 +67,18 @@
         "realm": "acme1",
         "client_id": "acme_client",
         "#client_secret": "DUMMY_SECRET",
-        "service_account": "svc_account",
         "service": "VoucherRowsAnalysis",
         "entity_set": "VoucherRowSet",
         "columns": ["Company", "VoucherType", "AccountingYear", "VoucherNo", "RowNo", "VoucherDate", "Account", "Amount", "CurrencyCode"],
         "primary_key": ["Company", "VoucherType", "AccountingYear", "VoucherNo", "RowNo"],
-        "fetch_type": "full_fetch",
         "load_type": "full_load",
         "filter": "AccountingYear eq 2026"
       }
     }
   },
   {
-    "name": "11_incremental_init",
-    "description": "First incremental run with empty state -> full pull that establishes the VoucherDate watermark in state.json.",
+    "name": "11_date_window",
+    "description": "A closed Date window (date_start + date_end on VoucherDate) -> a stateless `(filter) and (VoucherDate ge date_start) and (VoucherDate lt date_end)` $filter is applied; no state, no cursor.",
     "config": {
       "action": "run",
       "parameters": {
@@ -92,21 +86,21 @@
         "realm": "acme1",
         "client_id": "acme_client",
         "#client_secret": "DUMMY_SECRET",
-        "service_account": "svc_account",
         "service": "VoucherRowsAnalysis",
         "entity_set": "VoucherRowSet",
         "columns": ["Company", "VoucherType", "AccountingYear", "VoucherNo", "RowNo", "VoucherDate", "Account", "Amount", "CurrencyCode"],
         "primary_key": ["Company", "VoucherType", "AccountingYear", "VoucherNo", "RowNo"],
-        "fetch_type": "incremental_fetch",
-        "incremental_field": "VoucherDate",
+        "date_field": "VoucherDate",
+        "date_start": "2020-01-01",
+        "date_end": "2027-01-01",
         "load_type": "incremental_load",
         "filter": "AccountingYear eq 2026"
       }
     }
   },
   {
-    "name": "12_incremental_advance",
-    "description": "Second incremental run with the chained watermark state -> a `VoucherDate gt <last_value>` $filter is applied and state advances.",
+    "name": "12_date_backfill",
+    "description": "An open-ended backfill (date_start only on VoucherDate) -> a stateless `(filter) and (VoucherDate ge date_start)` $filter is applied; re-runnable to re-pull history.",
     "config": {
       "action": "run",
       "parameters": {
@@ -114,13 +108,12 @@
         "realm": "acme1",
         "client_id": "acme_client",
         "#client_secret": "DUMMY_SECRET",
-        "service_account": "svc_account",
         "service": "VoucherRowsAnalysis",
         "entity_set": "VoucherRowSet",
         "columns": ["Company", "VoucherType", "AccountingYear", "VoucherNo", "RowNo", "VoucherDate", "Account", "Amount", "CurrencyCode"],
         "primary_key": ["Company", "VoucherType", "AccountingYear", "VoucherNo", "RowNo"],
-        "fetch_type": "incremental_fetch",
-        "incremental_field": "VoucherDate",
+        "date_field": "VoucherDate",
+        "date_start": "2020-01-01",
         "load_type": "incremental_load",
         "filter": "AccountingYear eq 2026"
       }
@@ -128,7 +121,7 @@
   },
   {
     "name": "13_paging_multi",
-    "description": "page_size=50 over a >50-row result forces the multi-page paging loop ($skip fallback) to collapse into one table.",
+    "description": "page_size=60 over a >60-row result forces the multi-page paging loop ($skip fallback) to collapse into one table.",
     "config": {
       "action": "run",
       "parameters": {
@@ -136,12 +129,10 @@
         "realm": "acme1",
         "client_id": "acme_client",
         "#client_secret": "DUMMY_SECRET",
-        "service_account": "svc_account",
         "service": "VoucherRowsAnalysis",
         "entity_set": "VoucherRowSet",
         "columns": ["Company", "VoucherType", "AccountingYear", "VoucherNo", "RowNo", "VoucherDate"],
         "primary_key": ["Company", "VoucherType", "AccountingYear", "VoucherNo", "RowNo"],
-        "fetch_type": "full_fetch",
         "load_type": "full_load",
         "filter": "AccountingYear eq 2026",
         "advanced": {
@@ -160,12 +151,10 @@
         "realm": "acme1",
         "client_id": "acme_client",
         "#client_secret": "DUMMY_SECRET",
-        "service_account": "svc_account",
         "service": "VoucherRowsAnalysis",
         "entity_set": "VoucherRowSet",
         "columns": ["Company", "VoucherNo"],
         "primary_key": ["Company", "VoucherNo"],
-        "fetch_type": "full_fetch",
         "load_type": "full_load",
         "filter": "NotAColumn eq 'x'"
       }
@@ -181,11 +170,9 @@
         "realm": "acme1",
         "client_id": "acme_client",
         "#client_secret": "DUMMY_SECRET",
-        "service_account": "svc_account",
         "service": "NoSuchServiceXyz",
         "entity_set": "VoucherRowSet",
         "primary_key": ["Company"],
-        "fetch_type": "full_fetch",
         "load_type": "full_load"
       }
     }
@@ -200,11 +187,9 @@
         "realm": "acme1",
         "client_id": "acme_client",
         "#client_secret": "DUMMY_SECRET",
-        "service_account": "svc_account",
         "service": "VoucherRowsAnalysis",
         "entity_set": "NoSuchEntitySet",
         "primary_key": ["Company"],
-        "fetch_type": "full_fetch",
         "load_type": "full_load"
       }
     }
@@ -219,10 +204,8 @@
         "realm": "acme1",
         "client_id": "acme_client",
         "#client_secret": "DUMMY_SECRET",
-        "service_account": "svc_account",
         "entity_set": "VoucherRowSet",
         "primary_key": ["Company"],
-        "fetch_type": "full_fetch",
         "load_type": "full_load"
       }
     }

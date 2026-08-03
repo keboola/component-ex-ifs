@@ -39,7 +39,7 @@ How IFS concepts map onto how Keboola runs the component:
 | EDMX `$metadata` column types | Native output-table `schema` (base types) |
 | OData `@odata.nextLink` server paging | Internal page loop (not a user concern) |
 | Per-service catalog / metadata | Sync-action dropdowns |
-| Watermark column (`gt` filter) | `state.json` watermark + incremental output mapping |
+| Customer Date window (`date_field` + `date_start`/`date_end`) | Server-side `$filter` bounds (stateless; recomputed each run, no stored cursor) |
 
 - **Config rows, one row per extracted table** — per Keboola convention for multiple independent
   objects. Each row = `service` + `entity_set` + query options (`$select`/`$filter`/`$orderby`) +
@@ -49,42 +49,36 @@ How IFS concepts map onto how Keboola runs the component:
 - **Rows run sequentially by default** (platform behaviour). Per-row parallelism is opt-in via the
   platform `parallelism` setting; the component does not assume or require it, and never shares state
   across rows. The component always receives a single already-merged `config.json` (root + row).
-- **Two independent load axes** (mirrors the SAP OData sibling):
-  - `fetch_type` = `full_fetch` | `incremental_fetch` → controls the OData `$filter` watermark.
+- **Two independent axes** (mirrors the SAP OData sibling):
+  - **Date window** (`date_field` + `date_start`/`date_end`) → controls the OData `$filter` date
+    bounds (server-side fetch scope). Customer-driven and **stateless** — recomputed each run.
   - `load_type` = `full_load` | `incremental_load` → controls the Keboola Storage write mode
     (`incremental=True` + primary key = upsert).
-- **Incremental strategy → state:** on an incremental row the component reads the stored watermark,
-  adds `$filter {incremental_field} gt {last_value}` (strictly greater-than — `gt`, not `ge`, to
-  avoid re-emitting the boundary row; Keboola PK-dedup absorbs any residual overlap), streams the
-  result, tracks the **max value of the `incremental_field` column across the written rows**, and
-  persists that max **after** a successful write. `state.json` is row-scoped and holds
-  `{ "last_run": "<ISO-8601 UTC>", "last_value": "<max value of incremental_field>", "records_extracted": N }`.
-  First run (empty state) falls back to full fetch (or an optional configured seed value). See §5.
-  - **Deliberate divergence from the canonical wall-clock watermark:** the standard `last_run`
-    pattern (capture `now()` before fetch, filter server-side by "changed since `now`") does **not**
-    apply here, because IFS has no generic "changed-since" server signal — the filter compares an
-    actual **data column** (`incremental_field`, e.g. `EntryDate`), so the stored bound must be a
-    value from that column's own domain (a date/timestamp/id), not wall-clock time (which is not
-    comparable to, say, a business-date or integer-id column). Hence the watermark is the max
-    `incremental_field` value among successfully-written rows, persisted only after the write (a
-    failed run keeps the prior bound and is safely retried). `last_run` is stored alongside for
-    operator visibility only, not used as the filter bound. Where `incremental_field` is day-grain
-    (`Edm.Date`), the `gt` boundary can miss same-day late arrivals — documented; prefer a true
-    change-stamp column where the projection exposes one, and rely on PK upsert to absorb overlap.
-- **Optional override date window (`date_from` / `date_to`):** an incremental row may set an explicit
-  lower and/or upper bound on the `incremental_field`. Each accepts a **relative** (`5 days ago`,
-  `yesterday`, `today`, `1 month ago`) or **absolute** (`YYYY-MM-DD` / ISO-8601) value, resolved to a
-  concrete UTC value at run time and formatted for the field's EDM type. `date_from` is an
-  **override** of the watermark lower bound: when set the stored watermark is ignored and the filter
-  uses `{incremental_field} ge date_from`, so history can be re-pulled or a backfill batched (a
-  forward-only watermark alone is insufficient for maintenance / re-pulls). `date_to` (when set) adds
-  the upper bound `{incremental_field} lt date_to` for moving windows or splitting a backfill into
-  batches. Both bounds are ANDed with the user `$filter`. The watermark **still advances** to the max
-  written value after a successful write, so a hands-off incremental run resumes normally after a
-  manual backfill run.
+- **Date window → server-side `$filter` (stateless):** the customer bounds the fetch with an explicit
+  Date window on a chosen `date_field`. When `date_start` is set the component adds
+  `$filter {date_field} ge {resolved_start}`; when `date_end` is set it adds
+  `{date_field} lt {resolved_end}`. Both bounds are ANDed with the user `$filter` and formatted for the
+  field's EDM type. The window is **recomputed from the config on every run** — there is no stored
+  watermark and no auto-advancing cursor. An empty window (no `date_start`/`date_end`) fetches
+  everything. `state.json` is row-scoped and **operational only**:
+  `{ "last_run": "<ISO-8601 UTC>", "records_extracted": N }` — never a data-derived cursor.
+  - **Why customer-driven, not an auto cursor (deliberate design):** an auto-advancing
+    `gt last_value` watermark gives the customer no way to re-pull or fix data — a forward-only cursor
+    can only ever move ahead, so a bad run, a schema fix, or a re-pull of history is impossible without
+    surgery on hidden state. The explicit Date window is therefore the primary (and only)
+    date-bounding mechanism: the customer re-pulls history, batches a large backfill (successive
+    `Date Start`/`Date End` batches), or runs a moving window (Start `5 days ago`, End `today`) at
+    will, and PK upsert absorbs any overlap. `date_start`/`date_end` accept **relative** (`5 days ago`,
+    `yesterday`, `today`, `1 month ago`) or **absolute** (`YYYY-MM-DD` / ISO-8601) values, resolved to
+    a concrete UTC value at run time. This also sidesteps the canonical wall-clock watermark problem:
+    IFS has no generic "changed-since" server signal, so the filter compares an actual **data column**
+    (`date_field`, e.g. `EntryDate`) against a value from that column's own domain, not wall-clock
+    time. Where `date_field` is day-grain (`Edm.Date`), a moving window's boundary can miss same-day
+    late arrivals — documented; prefer a change-stamp column where the projection exposes one, and rely
+    on PK upsert to absorb overlap.
 - **Secrets → `#`-prefixed keys:** `#client_secret` (encrypted, `KBC::ProjectSecure`).
 - **Sync actions** (validate + drive dropdowns in the UI): `testConnection`, `validate_query`,
-  `list_services`, `list_entitysets`, `list_columns`, `list_primary_keys`, `list_incremental_fields`.
+  `list_services`, `list_entitysets`, `list_columns`, `list_primary_keys`, `list_date_fields`.
   See §5.
 - **Output naming:** one stable output table per row, named from the row (default `{entity_set}` →
   `{service}_{entity_set}` when disambiguation is needed) — never generated at runtime. Storage
@@ -171,7 +165,7 @@ and the YAGNI list are the user's explicit scope calls).
 | **Main entity-set collection reads** (`GET {svc}/{EntitySet}`) | In scope | The core extract — one entity set per config row → one table. Example: `VoucherRowSet`. |
 | **Reference / lookup entity sets** (e.g. `Reference_Account`, `Reference_CodeB..J`, `Reference_VoucherType`, `Reference_TaxBookLov`, `Reference_TaxSeries`, `Reference_UserGroupFinance`, `Reference_DeliveryType`) | In scope | Discovered like any entity set; each extractable as its own config row (dimension tables). No special-casing needed — they are entity sets. |
 | **Navigation properties / `$expand` denormalization** (e.g. `AccountRef`, `VoucherTypeRef`) | **Excluded — deferred (future enhancement)** | Nav-prop target-type flattening is not built in v1: without resolving each nav-prop's target EDMX type, expanded objects can only be dropped, so `$expand` would silently lose data. Deferred until proper flattening (expanded entities → prefixed scalar columns) is implemented. `list_columns` offers scalar properties only (OData `$select` rejects nav-props with a 400). Extract related entity sets as their own rows instead. |
-| **OData query options** — `$filter`, `$select`, `$orderby`, `$top`, `$skip`, `$count` | In scope | `$select` (payload trim + column pick), `$filter` (user filter + incremental bounds — the watermark `gt`, plus an optional override date window `date_from` `ge` / `date_to` `lt`; see §2), `$orderby`, `$top`/`$skip` (paging fallback), `$count` (best-effort; some projections reject it — never make paging depend on it). `$expand` is deferred (see the row above). |
+| **OData query options** — `$filter`, `$select`, `$orderby`, `$top`, `$skip`, `$count` | In scope | `$select` (payload trim + column pick), `$filter` (user filter + the customer Date window — `date_start` `ge` / `date_end` `lt` on `date_field`; stateless, recomputed each run; see §2), `$orderby`, `$top`/`$skip` (paging fallback), `$count` (best-effort; some projections reject it — never make paging depend on it). `$expand` is deferred (see the row above). |
 | **`$search` free-text option** | In scope (best-effort) | Declared in the spec but not attached to every operation; exposed as an optional row filter, not relied on. |
 | **`$apply` (aggregation) option** | Excluded | Not modeled by IFS projections; aggregation belongs in a downstream transformation, not the extractor. User-approved YAGNI. |
 | **Catalog enumeration** (`AllProjections.svc/Projections`) | In scope | Powers the `list_services` sync-action dropdown (~5,640 services → searchable/typeahead), with **free-text service name as the always-works fallback** (per-service `$metadata` works without the catalog). |
@@ -233,17 +227,17 @@ plan). This section describes the fields and behaviours.
   `entity_set`); empty = all columns.
 - `primary_key` — multi-select fed by `list_primary_keys` (ranked from the EDMX key). Required when
   `load_type = incremental_load`.
-- `fetch_type` — enum `full_fetch` | `incremental_fetch` (default `full_fetch`).
-- `incremental_field` — single-select fed by `list_incremental_fields` (date/timestamp columns ranked
-  first). Required when `fetch_type = incremental_fetch`. Shown only for `incremental_fetch`
-  (`options.dependencies`).
-- `date_from` / `date_to` — optional string bounds on the `incremental_field`, shown only for
-  `incremental_fetch` (`options.dependencies`, alongside `incremental_field`). Accept relative
-  (`5 days ago`, `today`) or absolute (`YYYY-MM-DD` / ISO-8601) values. `date_from` **overrides** the
-  stored watermark lower bound (`ge`, so history can be re-pulled / a backfill batched); `date_to`
-  applies the upper bound (`lt`, for moving windows). See §2.
-- `load_type` — enum `full_load` | `incremental_load` (default `incremental_load`, CF default).
-- `filter` (`$filter`) — optional free-text OData filter (user-supplied, combined with the watermark).
+- `date_field` — single-select fed by `list_date_fields` (date/timestamp columns ranked first). The
+  column that `date_start` / `date_end` filter on. First-class, ungated (no `fetch_type` toggle).
+  Required only when `date_start` or `date_end` is set.
+- `date_start` / `date_end` — first-class, prominent string bounds on the `date_field` (grouped with
+  it as the Date window, not framed as an optional override). Accept relative (`5 days ago`, `today`)
+  or absolute (`YYYY-MM-DD` / ISO-8601) values, resolved to concrete UTC at run time. `date_start`
+  adds the lower bound (`ge`), `date_end` the upper bound (`lt`). Empty window = fetch everything.
+  See §2.
+- `load_type` — enum `full_load` | `incremental_load` (default `incremental_load`, CF default). The
+  Storage write mode, independent of the Date window (which bounds fetching).
+- `filter` (`$filter`) — optional free-text OData filter (user-supplied, ANDed with the Date window bounds).
 - `order_by` (`$orderby`) — optional.
 - `keep_meta_fields` — optional boolean (default false) → strip IFS meta-fields unless set.
 - `validate_query` — a validate button (`format` sync-action widget) that runs the `validate_query`
@@ -252,10 +246,11 @@ plan). This section describes the fields and behaviours.
 **Schema conventions to honour** (checked by the schema-ui gate): conditional fields via
 `options.dependencies` (not root-level `dependencies`); async selects carry `"enum": []`; every
 `options.async.action` has a matching `@sync_action`; required declared via parent `"required": [...]`;
-`#`-field names match the Pydantic `alias=`; the first async dropdown autoloads; fields grouped into
-named `type: object` sections (connection / advanced on root; service+entity / query / incremental on
-the row) rather than one flat 6+ field list; `enum` fields carry `options.enum_titles`; titles Title
-Case, descriptions Sentence case, all English.
+`#`-field names match the Pydantic `alias=`; the first async dropdown autoloads; root fields grouped
+into named `type: object` sections (connection / advanced), and the flat row config keeps related
+fields adjacent by `propertyOrder` (source → query → Date window → loading) with the Date window
+(`date_field` / `date_start` / `date_end`) as a prominent, ungated cluster; `enum` fields carry
+`options.enum_titles`; titles Title Case, descriptions Sentence case, all English.
 
 **Sync actions** (read-only; return `[{"label","value"}]` for dropdowns; `testConnection` raises
 `UserException` on failure, never on success):
@@ -272,7 +267,7 @@ Case, descriptions Sentence case, all English.
 - `list_entitysets` — parse the service `$metadata` (EDMX) → entity sets.
 - `list_columns` — parse `$metadata` → scalar properties only (nav-props excluded; `$select` rejects them).
 - `list_primary_keys` — EDMX entity `Key` → ranked PK candidates.
-- `list_incremental_fields` — properties ranked by datetime type + name heuristics (e.g. `EntryDate`).
+- `list_date_fields` — properties ranked by datetime type + name heuristics (e.g. `EntryDate`).
 
 Every `@sync_action` must also be **registered in the Developer Portal** (Phase 6) or it 404s
 on-platform regardless of image tag.
@@ -294,16 +289,17 @@ Modules (API/auth client separated from `component.py`; `run()` a thin orchestra
 - `src/configuration.py` — Pydantic models: `Configuration` (root/connection), a nested
   `AdvancedConfig` sub-model (the collapsible Advanced section of §5 — `base_path`, `page_size`,
   `request_timeout`, `max_retries`, exposed as `Configuration.advanced` and read as `config.advanced.*`),
-  and `RowConfiguration` (per-table). Typed fields (enums for `fetch_type`/`load_type`; no raw
+  and `RowConfiguration` (per-table). Typed fields (a `LoadType` enum for `load_type`; no raw
   `dict`/`Any`); `#client_secret` via `Field(alias="#client_secret")`; `extra="ignore"` set explicitly;
-  validators tolerate empty/None; a `computed_field` `incremental` derived from `load_type`. No `debug`
-  field (the base consumes the platform `debug`). Partial instantiation only where a sync action needs
-  fewer fields than `run()`.
+  validators tolerate empty/None (PK required for `incremental_load`; `date_field` required when
+  `date_start`/`date_end` is set); a `computed_field` `incremental` derived from `load_type`. No
+  `debug` field (the base consumes the platform `debug`). Partial instantiation only where a sync
+  action needs fewer fields than `run()`.
 - `src/component.py` — `Component(ComponentBase)`. Clients built in `__init__` (config permitting);
-  `run()` under ~30 lines delegating to private methods: `_get_config`, `_discover_schema`
-  (EDMX → columns/types/PK), `_build_filter` (watermark `gt` + user `$filter`), `_fetch` (paged
-  generator), `_write` (stream to CSV + build `schema` manifest), `_advance_state`. `@sync_action`
-  methods use `self.client` (no client init inside them).
+  `run()` under ~30 lines delegating to private methods: `_parse_row`, `_discover`
+  (EDMX → columns/types/PK), `_build_filter` (stateless Date-window `ge`/`lt` bounds + user `$filter`),
+  `_extract` (paged generator streamed to CSV + `schema` manifest), `_finalize` (manifest + operational
+  state, no data cursor). `@sync_action` methods use `self.client` (no client init inside them).
 
 **Native types / manifest:** emit the **authoritative `schema`** manifest (`data_type.base.type`) —
 `dataTypeSupport = authoritative` is set in the Developer Portal in Phase 6 (CF default for new
@@ -313,7 +309,7 @@ debuggability, pass `has_header=True` so Storage skips it (a `schema` manifest d
 
 **Error handling** — `UserException` (exit 1) for user-fixable conditions: token/auth failure (bad
 `client_id`/secret/realm/tenant), `403` (missing permission set or no Allowed Company), `400`
-(malformed `$filter`), unknown service/entity set, missing required row fields (PK/incremental_field).
+(malformed `$filter`), unknown service/entity set, missing required row fields (PK; `date_field` when a Date bound is set).
 Unexpected failures bubble up as exit 2. Sync actions never raise on a missing-config precondition
 (return a guidance item); they raise `UserException` on a real API/HTTP error.
 
@@ -336,8 +332,9 @@ SAP sibling (design O3) — YAGNI now.
     legacy mode and silently emits `columns`+`column_metadata` instead of the `schema` format — the
     fixtures would then validate against the wrong manifest shape. Set it in the test setup (e.g.
     `docker-compose`/`build_n_test.sh` env) so the expected `schema` manifests are actually produced.
-  - incremental — seeded `state.json` watermark → asserts the `gt` `$filter` is applied and state
-    advances; PK-based upsert (`incremental=True`).
+  - Date window — a `date_field` + `date_start`/`date_end` config → asserts the stateless
+    `ge`/`lt` `$filter` bounds are applied (ANDed with the user filter); PK-based upsert
+    (`incremental=True`). No seeded state, no cursor.
   - paging — a multi-page `@odata.nextLink` sequence collapses into one table.
   - meta-field stripping — `@odata.etag`/`luname`/`keyref`/`Objgrants` absent from output columns.
   - error cases → exit 1: auth failure, `403` (no permission / no Allowed Company), `400` bad
@@ -352,7 +349,7 @@ SAP sibling (design O3) — YAGNI now.
 - **Sync-action tests:** `testConnection` (success + failure→`UserException`), `validate_query`
   (valid query → ok; malformed `$filter` → OData `error.message` surfaced), `list_services` (catalog +
   free-text fallback + missing-config guidance item), `list_entitysets` / `list_columns` /
-  `list_primary_keys` / `list_incremental_fields` parsed from a recorded `$metadata` fixture.
+  `list_primary_keys` / `list_date_fields` parsed from a recorded `$metadata` fixture.
 - **Seed payloads already on disk:** `VoucherRowsAnalysis.openapi.json` (the real service's OpenAPI)
   seeds column/entity-set expectations for the metadata-parser unit tests immediately (no creds
   needed); the live `VoucherRowSet` JSON is captured during provisioning as the first cassette.

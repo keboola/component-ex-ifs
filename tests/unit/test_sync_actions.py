@@ -117,10 +117,10 @@ def test_list_primary_keys_keys_first(tmp_path, monkeypatch):
     assert values[:2] == ["Company", "VoucherNo"]  # EDMX key columns ranked first
 
 
-def test_list_incremental_fields_datetime_first(tmp_path, monkeypatch):
+def test_list_date_fields_datetime_first(tmp_path, monkeypatch):
     monkeypatch.setattr(odata.IfsODataClient, "get_metadata", lambda self, service: FIXTURE.read_text(encoding="utf-8"))
     comp = _component(tmp_path, monkeypatch, {**CONN, "service": "VoucherRowsAnalysis", "entity_set": "VoucherRowSet"})
-    values = _values(comp.list_incremental_fields())
+    values = _values(comp.list_date_fields())
     assert values[0] == "ChangedTimestamp"
     assert values[1] == "EntryDate"
 

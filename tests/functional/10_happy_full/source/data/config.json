@@ -5,7 +5,6 @@
     "realm": "acme1",
     "client_id": "acme_client",
     "#client_secret": "DUMMY_SECRET",
-    "service_account": "svc_account",
     "service": "VoucherRowsAnalysis",
     "entity_set": "VoucherRowSet",
     "columns": [
@@ -26,7 +25,6 @@
       "VoucherNo",
       "RowNo"
     ],
-    "fetch_type": "full_fetch",
     "load_type": "full_load",
     "filter": "AccountingYear eq 2026"
   }

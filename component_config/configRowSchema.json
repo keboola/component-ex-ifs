@@ -60,7 +60,7 @@
       "description": "OData filter expression",
       "propertyOrder": 40,
       "options": {
-        "tooltip": "Additional OData `$filter` expression, combined (AND) with any incremental bounds. Chain conditions with `and`/`or`, e.g. `Company eq '100' and EntryDate gt 2024-01-01`."
+        "tooltip": "Additional OData `$filter` expression, combined (AND) with the Date window bounds. Chain conditions with `and`/`or`, e.g. `Company eq '100' and EntryDate gt 2024-01-01`."
       }
     },
     "order_by": {
@@ -72,12 +72,45 @@
         "tooltip": "OData `$orderby` expression, e.g. `EntryDate desc`."
       }
     },
+    "date_field": {
+      "type": "string",
+      "title": "Date Field",
+      "description": "Date field the window filters on",
+      "format": "select",
+      "enum": [],
+      "propertyOrder": 60,
+      "options": {
+        "tooltip": "The date/timestamp column that Date Start and Date End filter on.",
+        "async": {
+          "label": "Load Date Fields",
+          "action": "list_date_fields"
+        }
+      }
+    },
+    "date_start": {
+      "type": "string",
+      "title": "Date Start",
+      "description": "Lower bound on the Date Field",
+      "propertyOrder": 70,
+      "options": {
+        "tooltip": "Lower bound on the Date Field (`>=`). Relative (`5 days ago`, `today`) or absolute (`YYYY-MM-DD`). Leave both dates empty to fetch everything."
+      }
+    },
+    "date_end": {
+      "type": "string",
+      "title": "Date End",
+      "description": "Upper bound on the Date Field",
+      "propertyOrder": 80,
+      "options": {
+        "tooltip": "Upper bound on the Date Field (`<`). Use for moving windows (Start `5 days ago`, End `today`) or to split a large backfill into batches."
+      }
+    },
     "keep_meta_fields": {
       "type": "boolean",
       "title": "Keep Meta Fields",
       "description": "Keep IFS metadata fields in the output",
       "default": false,
-      "propertyOrder": 70,
+      "propertyOrder": 90,
       "options": {
         "tooltip": "IFS OData responses include internal metadata fields, e.g. `@odata.etag`. Left disabled, they are stripped from the output table."
       }
@@ -86,65 +119,11 @@
       "type": "button",
       "title": "Validate Query",
       "format": "sync-action",
-      "propertyOrder": 80,
+      "propertyOrder": 100,
       "options": {
         "async": {
           "label": "Validate Query",
           "action": "validate_query"
-        }
-      }
-    },
-    "fetch_type": {
-      "type": "string",
-      "title": "Fetch Type",
-      "description": "Full or incremental fetch from the source",
-      "enum": ["full_fetch", "incremental_fetch"],
-      "default": "full_fetch",
-      "propertyOrder": 90,
-      "options": {
-        "enum_titles": ["Full Fetch", "Incremental Fetch"],
-        "tooltip": "Incremental fetch adds a server-side filter on the incremental field using the previous run's watermark."
-      }
-    },
-    "incremental_field": {
-      "type": "string",
-      "title": "Incremental Field",
-      "description": "Field used as the incremental watermark",
-      "format": "select",
-      "enum": [],
-      "propertyOrder": 100,
-      "options": {
-        "tooltip": "Date or timestamp field used to filter for records new or changed since the last run.",
-        "dependencies": {
-          "fetch_type": "incremental_fetch"
-        },
-        "async": {
-          "label": "Load Incremental Fields",
-          "action": "list_incremental_fields"
-        }
-      }
-    },
-    "date_from": {
-      "type": "string",
-      "title": "Date From",
-      "description": "Optional lower bound on the incremental field",
-      "propertyOrder": 102,
-      "options": {
-        "tooltip": "Optional lower bound on the incremental field. Accepts relative (`5 days ago`, `today`) or absolute (`YYYY-MM-DD`) values. When set, it OVERRIDES the stored watermark so you can re-pull history or batch a backfill.",
-        "dependencies": {
-          "fetch_type": "incremental_fetch"
-        }
-      }
-    },
-    "date_to": {
-      "type": "string",
-      "title": "Date To",
-      "description": "Optional upper bound on the incremental field",
-      "propertyOrder": 104,
-      "options": {
-        "tooltip": "Optional upper bound (`{incremental_field} < date_to`) for moving windows or splitting backfills into batches.",
-        "dependencies": {
-          "fetch_type": "incremental_fetch"
         }
       }
     },
