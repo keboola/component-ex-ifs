@@ -16,28 +16,28 @@
       "type": "string",
       "title": "Realm",
       "description": "Keycloak realm for this tenant",
-      "propertyOrder": 20
+      "propertyOrder": 20,
+      "options": {
+        "tooltip": "The Keycloak realm in your IFS auth URL (`…/auth/realms/{realm}/…`). An IFS admin finds it in Solution Manager's Identity and Access Manager, or it's the `realms/<value>` segment of the tenant's token endpoint."
+      }
     },
     "client_id": {
       "type": "string",
       "title": "Client ID",
       "description": "OAuth client ID for the service account",
-      "propertyOrder": 30
+      "propertyOrder": 30,
+      "options": {
+        "tooltip": "Client ID of the confidential IAM Client created in IFS Solution Manager → Identity and Access Manager → IAM Client (with the Service Accounts / client_credentials grant enabled)."
+      }
     },
     "#client_secret": {
       "type": "string",
       "title": "Client Secret",
       "format": "password",
       "description": "OAuth client secret",
-      "propertyOrder": 40
-    },
-    "service_account": {
-      "type": "string",
-      "title": "Service Account",
-      "description": "IFS service user this credential represents",
-      "propertyOrder": 50,
+      "propertyOrder": 40,
       "options": {
-        "tooltip": "Optional label recording which IFS service user this client credential belongs to. For operator reference only — it is not sent to IFS and does not affect the connection."
+        "tooltip": "Client Secret generated for that IAM Client (shown once when the client is created / regenerated)."
       }
     },
     "testConnection": {

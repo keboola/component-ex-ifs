@@ -14,13 +14,14 @@ import sys
 from collections import OrderedDict
 from datetime import UTC, datetime
 
+import dateparser
 from keboola.component.base import ComponentBase, sync_action
 from keboola.component.dao import ColumnDefinition, TableDefinition
 from keboola.component.exceptions import UserException
 from keboola.component.sync_actions import MessageType, SelectElement, ValidationResult
 
 from client.auth import IfsAuthClient
-from client.metadata import EntityMeta, parse_metadata, rank_incremental_fields
+from client.metadata import EntityMeta, edm_to_base_type, parse_metadata, rank_incremental_fields
 from client.odata import IfsODataClient
 from client.schema import build_column_schema, format_filter_literal
 from configuration import Configuration, FetchType, RowConfiguration
@@ -124,7 +125,7 @@ else:
     VCR_SANITIZERS = [
         # 1. Auth/secret redaction, cassette-only: tokens + client_secret stay REAL
         #    for the component while recording, redacted in the written cassette.
-        DefaultSanitizer(additional_sensitive_fields=["tenant_id", "service_account", "realm"]),
+        DefaultSanitizer(additional_sensitive_fields=["tenant_id", "realm"]),
         # 2. Host/realm rewrite, cassette-only (NOT scrub_before_read): the live
         #    host stays real for the component mid-record; only the cassette gets
         #    the acme.ifs.cloud / acme1 placeholders so replay matches the placeholder config.
@@ -256,20 +257,66 @@ class Component(ComponentBase):
         return "Edm.String"
 
     def _build_filter(self, row: RowConfiguration, meta: EntityMeta, state: dict) -> str | None:
-        """Combine the user ``$filter`` with the incremental ``gt`` watermark."""
+        """Combine the user ``$filter`` with the incremental lower/upper bounds.
+
+        Lower-bound precedence (the override contract):
+        - ``date_from`` set -> ``{inc_field} ge {date_from}`` and the stored
+          watermark is IGNORED for the lower bound, so history can be re-pulled or
+          a backfill batched (a forward-only watermark alone is insufficient).
+        - else, incremental fetch with a stored watermark -> hands-off
+          ``{inc_field} gt {last_value}``.
+
+        ``date_to`` (when set) adds the upper bound ``{inc_field} lt {date_to}``
+        for moving windows / splitting a backfill into batches. All bounds are
+        ANDed with the user ``filter``. ``date_from``/``date_to`` accept relative
+        (``5 days ago``, ``today``) or absolute (``YYYY-MM-DD``) values, resolved
+        to a concrete UTC value at run time and formatted for the field's EDM type.
+        """
         clauses: list[str] = []
         if row.filter:
             clauses.append(row.filter)
-        last_value = state.get("last_value")
         inc_field = row.incremental_field
-        if row.fetch_type == FetchType.incremental_fetch and inc_field and last_value is not None:
-            literal = format_filter_literal(self._edm_type_of(meta, inc_field), last_value)
-            clauses.append(f"{inc_field} gt {literal}")
+        if row.fetch_type == FetchType.incremental_fetch and inc_field:
+            edm_type = self._edm_type_of(meta, inc_field)
+            if row.date_from:
+                clauses.append(f"{inc_field} ge {self._resolve_bound_literal(row.date_from, edm_type)}")
+            else:
+                last_value = state.get("last_value")
+                if last_value is not None:
+                    clauses.append(f"{inc_field} gt {format_filter_literal(edm_type, last_value)}")
+            if row.date_to:
+                clauses.append(f"{inc_field} lt {self._resolve_bound_literal(row.date_to, edm_type)}")
         if not clauses:
             return None
         if len(clauses) == 1:
             return clauses[0]
         return " and ".join(f"({clause})" for clause in clauses)
+
+    @staticmethod
+    def _resolve_bound_literal(raw: str, edm_type: str) -> str:
+        """Resolve a relative/absolute ``date_from``/``date_to`` to a filter literal.
+
+        The value is parsed (relative anchored to ``now`` in UTC) then rendered in
+        the shape the incremental field's EDM type expects (``YYYY-MM-DD`` for a
+        date, ISO-8601 ``…Z`` for a timestamp) before ``format_filter_literal``
+        applies OData quoting rules.
+        """
+        base = datetime.now(tz=UTC).replace(tzinfo=None)
+        parsed = dateparser.parse(
+            raw,
+            settings={"RELATIVE_BASE": base, "TIMEZONE": "UTC", "RETURN_AS_TIMEZONE_AWARE": False},
+        )
+        if parsed is None:
+            raise UserException(
+                f"Could not parse the date value '{raw}'. Use a relative value such as "
+                "'5 days ago', 'yesterday' or 'today', or an absolute date like 'YYYY-MM-DD'."
+            )
+        base_type = edm_to_base_type(edm_type)
+        if base_type == "TIMESTAMP":
+            value = parsed.strftime("%Y-%m-%dT%H:%M:%SZ")
+        else:
+            value = parsed.date().isoformat()
+        return format_filter_literal(edm_type, value)
 
     def _extract(
         self, row: RowConfiguration, meta: EntityMeta, query_filter: str | None

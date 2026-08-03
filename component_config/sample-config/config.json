@@ -14,7 +14,6 @@
     "realm": "acme1",
     "client_id": "ifs-extractor",
     "#client_secret": "your-encrypted-client-secret",
-    "service_account": "svc_ifs_readonly",
     "advanced": {
       "base_path": "/main/ifsapplications/projection/v1",
       "page_size": 1000,
@@ -27,6 +26,8 @@
     "primary_key": ["Company", "VoucherNo"],
     "fetch_type": "incremental_fetch",
     "incremental_field": "EntryDate",
+    "date_from": "5 days ago",
+    "date_to": "today",
     "load_type": "incremental_load",
     "filter": "Company eq '100'",
     "order_by": "EntryDate",

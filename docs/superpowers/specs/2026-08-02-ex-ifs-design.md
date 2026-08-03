@@ -71,6 +71,17 @@ How IFS concepts map onto how Keboola runs the component:
     operator visibility only, not used as the filter bound. Where `incremental_field` is day-grain
     (`Edm.Date`), the `gt` boundary can miss same-day late arrivals — documented; prefer a true
     change-stamp column where the projection exposes one, and rely on PK upsert to absorb overlap.
+- **Optional override date window (`date_from` / `date_to`):** an incremental row may set an explicit
+  lower and/or upper bound on the `incremental_field`. Each accepts a **relative** (`5 days ago`,
+  `yesterday`, `today`, `1 month ago`) or **absolute** (`YYYY-MM-DD` / ISO-8601) value, resolved to a
+  concrete UTC value at run time and formatted for the field's EDM type. `date_from` is an
+  **override** of the watermark lower bound: when set the stored watermark is ignored and the filter
+  uses `{incremental_field} ge date_from`, so history can be re-pulled or a backfill batched (a
+  forward-only watermark alone is insufficient for maintenance / re-pulls). `date_to` (when set) adds
+  the upper bound `{incremental_field} lt date_to` for moving windows or splitting a backfill into
+  batches. Both bounds are ANDed with the user `$filter`. The watermark **still advances** to the max
+  written value after a successful write, so a hands-off incremental run resumes normally after a
+  manual backfill run.
 - **Secrets → `#`-prefixed keys:** `#client_secret` (encrypted, `KBC::ProjectSecure`).
 - **Sync actions** (validate + drive dropdowns in the UI): `testConnection`, `validate_query`,
   `list_services`, `list_entitysets`, `list_columns`, `list_primary_keys`, `list_incremental_fields`.
@@ -107,8 +118,6 @@ How IFS concepts map onto how Keboola runs the component:
     `https://{host}/auth/realms/{realm}/.well-known/openid-configuration` if it ever needs verifying.
   - `client_id` (string, required).
   - `#client_secret` (encrypted string, required).
-  - `service_account` (string, optional) — the IFS service-user identity behind the client; recorded
-    for operator clarity, not sent in the token request.
   - Optional advanced defaults: `base_path` (default `/main/ifsapplications/projection/v1`),
     `page_size` (default 1000), request timeout, max retries.
 - **What the component does NOT manage — server-side access control.** IFS data access is governed by
@@ -162,7 +171,7 @@ and the YAGNI list are the user's explicit scope calls).
 | **Main entity-set collection reads** (`GET {svc}/{EntitySet}`) | In scope | The core extract — one entity set per config row → one table. Example: `VoucherRowSet`. |
 | **Reference / lookup entity sets** (e.g. `Reference_Account`, `Reference_CodeB..J`, `Reference_VoucherType`, `Reference_TaxBookLov`, `Reference_TaxSeries`, `Reference_UserGroupFinance`, `Reference_DeliveryType`) | In scope | Discovered like any entity set; each extractable as its own config row (dimension tables). No special-casing needed — they are entity sets. |
 | **Navigation properties / `$expand` denormalization** (e.g. `AccountRef`, `VoucherTypeRef`) | **Excluded — deferred (future enhancement)** | Nav-prop target-type flattening is not built in v1: without resolving each nav-prop's target EDMX type, expanded objects can only be dropped, so `$expand` would silently lose data. Deferred until proper flattening (expanded entities → prefixed scalar columns) is implemented. `list_columns` offers scalar properties only (OData `$select` rejects nav-props with a 400). Extract related entity sets as their own rows instead. |
-| **OData query options** — `$filter`, `$select`, `$orderby`, `$top`, `$skip`, `$count` | In scope | `$select` (payload trim + column pick), `$filter` (incremental + user filter), `$orderby`, `$top`/`$skip` (paging fallback), `$count` (best-effort; some projections reject it — never make paging depend on it). `$expand` is deferred (see the row above). |
+| **OData query options** — `$filter`, `$select`, `$orderby`, `$top`, `$skip`, `$count` | In scope | `$select` (payload trim + column pick), `$filter` (user filter + incremental bounds — the watermark `gt`, plus an optional override date window `date_from` `ge` / `date_to` `lt`; see §2), `$orderby`, `$top`/`$skip` (paging fallback), `$count` (best-effort; some projections reject it — never make paging depend on it). `$expand` is deferred (see the row above). |
 | **`$search` free-text option** | In scope (best-effort) | Declared in the spec but not attached to every operation; exposed as an optional row filter, not relied on. |
 | **`$apply` (aggregation) option** | Excluded | Not modeled by IFS projections; aggregation belongs in a downstream transformation, not the extractor. User-approved YAGNI. |
 | **Catalog enumeration** (`AllProjections.svc/Projections`) | In scope | Powers the `list_services` sync-action dropdown (~5,640 services → searchable/typeahead), with **free-text service name as the always-works fallback** (per-service `$metadata` works without the catalog). |
@@ -213,7 +222,6 @@ plan). This section describes the fields and behaviours.
 - `realm` — required, string. Keycloak realm.
 - `client_id` — required, string.
 - `#client_secret` — required, encrypted (alias `#client_secret`). Rendered as password field.
-- `service_account` — optional, string.
 - Advanced (collapsed section): `base_path`, `page_size`, timeout, retries — all with defaults.
 - `testConnection` — `format: "test-connection"` widget; validates the token exchange.
 
@@ -229,6 +237,11 @@ plan). This section describes the fields and behaviours.
 - `incremental_field` — single-select fed by `list_incremental_fields` (date/timestamp columns ranked
   first). Required when `fetch_type = incremental_fetch`. Shown only for `incremental_fetch`
   (`options.dependencies`).
+- `date_from` / `date_to` — optional string bounds on the `incremental_field`, shown only for
+  `incremental_fetch` (`options.dependencies`, alongside `incremental_field`). Accept relative
+  (`5 days ago`, `today`) or absolute (`YYYY-MM-DD` / ISO-8601) values. `date_from` **overrides** the
+  stored watermark lower bound (`ge`, so history can be re-pulled / a backfill batched); `date_to`
+  applies the upper bound (`lt`, for moving windows). See §2.
 - `load_type` — enum `full_load` | `incremental_load` (default `incremental_load`, CF default).
 - `filter` (`$filter`) — optional free-text OData filter (user-supplied, combined with the watermark).
 - `order_by` (`$orderby`) — optional.

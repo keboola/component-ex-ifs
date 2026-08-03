@@ -51,7 +51,6 @@ class Configuration(BaseModel):
     realm: str
     client_id: str
     client_secret: str = Field(alias="#client_secret")
-    service_account: str | None = None
     advanced: AdvancedConfig = Field(default_factory=AdvancedConfig)
 
     def __init__(self, **data):
@@ -77,6 +76,8 @@ class RowConfiguration(BaseModel):
     primary_key: list[str] = []
     fetch_type: FetchType = FetchType.full_fetch
     incremental_field: str | None = None
+    date_from: str | None = None
+    date_to: str | None = None
     load_type: LoadType = LoadType.incremental_load
     filter: str | None = None
     order_by: str | None = None

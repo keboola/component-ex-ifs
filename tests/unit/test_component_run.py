@@ -201,6 +201,144 @@ def test_empty_state_incremental_has_no_filter(tmp_path, monkeypatch):
     assert captured.get("filter") is None  # first run -> full fetch, no watermark clause
 
 
+def test_date_from_overrides_watermark_lower_bound(tmp_path, monkeypatch):
+    """date_from is an OVERRIDE: it wins over the stored watermark (ge, not gt) so
+    older data can be re-pulled, and the watermark still advances after the write."""
+    monkeypatch.setenv("KBC_DATA_TYPE_SUPPORT", "authoritative")
+    params = {
+        **BASE_PARAMS,
+        "fetch_type": "incremental_fetch",
+        "incremental_field": "EntryDate",
+        "load_type": "incremental_load",
+        "date_from": "2020-01-01",
+    }
+    datadir = _make_datadir(tmp_path, params, state={"last_value": "2025-01-01"})  # watermark present
+    monkeypatch.setenv("KBC_DATADIR", str(datadir))
+    captured: dict = {}
+    _patch_client(monkeypatch, captured=captured)
+
+    from component import Component
+
+    Component().run()
+
+    # date_from wins: ge on the override bound, and the stored gt watermark is dropped.
+    assert captured.get("filter") == "EntryDate ge 2020-01-01"
+    assert "gt 2025-01-01" not in (captured.get("filter") or "")
+    # watermark still advances to the max written value so hands-off runs resume afterwards.
+    state = json.loads((datadir / "out" / "state.json").read_text())
+    assert state["last_value"] == "2025-03-31"
+
+
+def test_date_to_applies_upper_bound(tmp_path, monkeypatch):
+    monkeypatch.setenv("KBC_DATA_TYPE_SUPPORT", "authoritative")
+    params = {
+        **BASE_PARAMS,
+        "fetch_type": "incremental_fetch",
+        "incremental_field": "EntryDate",
+        "load_type": "incremental_load",
+        "date_to": "2025-06-30",
+    }
+    datadir = _make_datadir(tmp_path, params)  # no prior watermark
+    monkeypatch.setenv("KBC_DATADIR", str(datadir))
+    captured: dict = {}
+    _patch_client(monkeypatch, captured=captured)
+
+    from component import Component
+
+    Component().run()
+
+    assert captured.get("filter") == "EntryDate lt 2025-06-30"
+
+
+def test_date_from_relative_value_resolves_to_concrete_date(tmp_path, monkeypatch):
+    from freezegun import freeze_time
+
+    monkeypatch.setenv("KBC_DATA_TYPE_SUPPORT", "authoritative")
+    params = {
+        **BASE_PARAMS,
+        "fetch_type": "incremental_fetch",
+        "incremental_field": "EntryDate",
+        "load_type": "incremental_load",
+        "date_from": "5 days ago",
+    }
+    datadir = _make_datadir(tmp_path, params)
+    monkeypatch.setenv("KBC_DATADIR", str(datadir))
+    captured: dict = {}
+    _patch_client(monkeypatch, captured=captured)
+
+    from component import Component
+
+    with freeze_time("2026-08-03"):
+        Component().run()
+
+    assert captured.get("filter") == "EntryDate ge 2026-07-29"  # 2026-08-03 minus 5 days
+
+
+def test_date_window_combined_with_user_filter_and_overrides_watermark(tmp_path, monkeypatch):
+    monkeypatch.setenv("KBC_DATA_TYPE_SUPPORT", "authoritative")
+    params = {
+        **BASE_PARAMS,
+        "fetch_type": "incremental_fetch",
+        "incremental_field": "EntryDate",
+        "load_type": "incremental_load",
+        "filter": "Company eq '100'",
+        "date_from": "2020-01-01",
+        "date_to": "2025-06-30",
+    }
+    datadir = _make_datadir(tmp_path, params, state={"last_value": "2025-01-01"})
+    monkeypatch.setenv("KBC_DATADIR", str(datadir))
+    captured: dict = {}
+    _patch_client(monkeypatch, captured=captured)
+
+    from component import Component
+
+    Component().run()
+
+    # user filter AND date_from override (ge) AND date_to (lt); watermark gt is dropped.
+    assert captured.get("filter") == "(Company eq '100') and (EntryDate ge 2020-01-01) and (EntryDate lt 2025-06-30)"
+
+
+def test_date_to_timestamp_field_renders_iso8601_literal(tmp_path, monkeypatch):
+    """A timestamp incremental field yields an unquoted ISO-8601 …Z literal."""
+    monkeypatch.setenv("KBC_DATA_TYPE_SUPPORT", "authoritative")
+    params = {
+        **BASE_PARAMS,
+        "fetch_type": "incremental_fetch",
+        "incremental_field": "ChangedTimestamp",
+        "load_type": "incremental_load",
+        "date_to": "2025-06-30",
+    }
+    datadir = _make_datadir(tmp_path, params)
+    monkeypatch.setenv("KBC_DATADIR", str(datadir))
+    captured: dict = {}
+    _patch_client(monkeypatch, captured=captured)
+
+    from component import Component
+
+    Component().run()
+
+    assert captured.get("filter") == "ChangedTimestamp lt 2025-06-30T00:00:00Z"
+
+
+def test_unparseable_date_from_raises_userexception(tmp_path, monkeypatch):
+    monkeypatch.setenv("KBC_DATA_TYPE_SUPPORT", "authoritative")
+    params = {
+        **BASE_PARAMS,
+        "fetch_type": "incremental_fetch",
+        "incremental_field": "EntryDate",
+        "load_type": "incremental_load",
+        "date_from": "definitely not a date",
+    }
+    datadir = _make_datadir(tmp_path, params)
+    monkeypatch.setenv("KBC_DATADIR", str(datadir))
+    _patch_client(monkeypatch)
+
+    from component import Component
+
+    with pytest.raises(UserException):
+        Component().run()
+
+
 def test_keep_meta_fields_true_writes_meta_columns(tmp_path, monkeypatch):
     """keep_meta_fields=true surfaces the IFS meta-fields as output columns with values."""
     monkeypatch.setenv("KBC_DATA_TYPE_SUPPORT", "authoritative")

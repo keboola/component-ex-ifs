@@ -133,3 +133,32 @@ def test_extra_fields_ignored():
     )
     assert not hasattr(cfg, "debug")
     assert not hasattr(cfg, "unknown_field")
+
+
+def test_service_account_field_removed():
+    """service_account was inert UI noise; it must no longer be a config field."""
+    assert "service_account" not in Configuration.model_fields
+    # A legacy config still carrying it must load fine (silently ignored, not exposed).
+    cfg = Configuration(tenant_id="t", realm="r", client_id="C", service_account="svc", **{"#client_secret": "s"})
+    assert not hasattr(cfg, "service_account")
+
+
+def test_row_date_window_fields_default_none():
+    row = RowConfiguration(service="S", entity_set="E", load_type=LoadType.full_load, fetch_type=FetchType.full_fetch)
+    assert row.date_from is None
+    assert row.date_to is None
+
+
+def test_row_date_window_fields_accept_relative_and_absolute_strings():
+    row = RowConfiguration(
+        service="S",
+        entity_set="E",
+        fetch_type=FetchType.incremental_fetch,
+        incremental_field="EntryDate",
+        load_type=LoadType.incremental_load,
+        primary_key=["Company"],
+        date_from="5 days ago",
+        date_to="2024-12-31",
+    )
+    assert row.date_from == "5 days ago"
+    assert row.date_to == "2024-12-31"

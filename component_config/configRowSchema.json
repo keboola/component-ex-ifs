@@ -28,7 +28,7 @@
       "enum": [],
       "propertyOrder": 20,
       "options": {
-        "tooltip": "Entity set exposed by the selected service's OData metadata.",
+        "tooltip": "The collection within the projection service whose records become this table's rows. Each row extracts one entity set into one table — add another row for another entity set.",
         "async": {
           "label": "Load Entity Sets",
           "action": "list_entitysets",
@@ -60,7 +60,7 @@
       "description": "OData filter expression",
       "propertyOrder": 40,
       "options": {
-        "tooltip": "OData `$filter` expression, combined with the incremental watermark when incremental fetch is enabled.\n\nExample:\n```\nStatus eq 'Released'\n```"
+        "tooltip": "Additional OData `$filter` expression, combined (AND) with any incremental bounds. Chain conditions with `and`/`or`, e.g. `Company eq '100' and EntryDate gt 2024-01-01`."
       }
     },
     "order_by": {
@@ -121,6 +121,30 @@
         "async": {
           "label": "Load Incremental Fields",
           "action": "list_incremental_fields"
+        }
+      }
+    },
+    "date_from": {
+      "type": "string",
+      "title": "Date From",
+      "description": "Optional lower bound on the incremental field",
+      "propertyOrder": 102,
+      "options": {
+        "tooltip": "Optional lower bound on the incremental field. Accepts relative (`5 days ago`, `today`) or absolute (`YYYY-MM-DD`) values. When set, it OVERRIDES the stored watermark so you can re-pull history or batch a backfill.",
+        "dependencies": {
+          "fetch_type": "incremental_fetch"
+        }
+      }
+    },
+    "date_to": {
+      "type": "string",
+      "title": "Date To",
+      "description": "Optional upper bound on the incremental field",
+      "propertyOrder": 104,
+      "options": {
+        "tooltip": "Optional upper bound (`{incremental_field} < date_to`) for moving windows or splitting backfills into batches.",
+        "dependencies": {
+          "fetch_type": "incremental_fetch"
         }
       }
     },
