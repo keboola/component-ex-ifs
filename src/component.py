@@ -321,7 +321,7 @@ class Component(ComponentBase):
             meta, selected, primary_key=row.primary_key, keep_meta_fields=row.keep_meta_fields
         )
         table = self.create_out_table_definition(
-            name=f"{row.entity_set}.csv",
+            name=f"{row.table_name}.csv",
             schema=schema,
             primary_key=row.primary_key,
             incremental=row.incremental,

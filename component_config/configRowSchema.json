@@ -36,6 +36,15 @@
         }
       }
     },
+    "output_table": {
+      "type": "string",
+      "title": "Storage Table Name",
+      "description": "Destination table name; defaults to the entity set",
+      "propertyOrder": 25,
+      "options": {
+        "tooltip": "Optional. Leave empty to name the output table after the entity set. Set an explicit name to extract the same entity set into more than one table (e.g. a different column subset or date window per table) without them colliding. Letters, digits, `_` and `-` only."
+      }
+    },
     "columns": {
       "type": "array",
       "title": "Columns",
@@ -43,14 +52,16 @@
       "format": "select",
       "uniqueItems": true,
       "items": {
-        "type": "string"
+        "type": "string",
+        "enum": []
       },
       "propertyOrder": 30,
       "options": {
         "tooltip": "OData `$select`. Leave empty to fetch all columns.",
         "async": {
           "label": "Load Columns",
-          "action": "list_columns"
+          "action": "list_columns",
+          "autoload": ["parameters.service", "parameters.entity_set"]
         }
       }
     },
@@ -146,7 +157,8 @@
       "format": "select",
       "uniqueItems": true,
       "items": {
-        "type": "string"
+        "type": "string",
+        "enum": []
       },
       "propertyOrder": 120,
       "options": {
@@ -156,7 +168,8 @@
         },
         "async": {
           "label": "Load Primary Keys",
-          "action": "list_primary_keys"
+          "action": "list_primary_keys",
+          "autoload": ["parameters.service", "parameters.entity_set"]
         }
       }
     }

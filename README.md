@@ -55,6 +55,7 @@ Configuration
 |---|---|
 | `service` | Projection service (pick from the live catalog or type a custom service name). |
 | `entity_set` | Entity set within the service. |
+| `output_table` | Optional destination table name (letters/digits/`_`/`-`). Defaults to the entity set; set it to extract the same entity set into more than one table without collision. |
 | `columns` | Optional `$select` — subset of columns (empty = all). |
 | `primary_key` | Primary key columns (required for incremental load). |
 | `date_field` | Date/timestamp column that Date Start / Date End filter on. |
@@ -70,7 +71,7 @@ Sync actions (available in the UI): **Test Connection**, **Validate Query**, and
 Output
 ======
 
-One table per configuration row, named after the entity set, with an authoritative `schema` manifest (native base types and primary key). Incremental rows upsert on the primary key. Fetching is stateless — the Date window is recomputed from the configuration each run; component state records only the last run time and row count, never a data cursor.
+One table per configuration row, named after the entity set (or the `output_table` override), with an authoritative `schema` manifest (native base types and primary key). Incremental rows upsert on the primary key. Fetching is stateless — the Date window is recomputed from the configuration each run; component state records only the last run time and row count, never a data cursor.
 
 Development
 -----------

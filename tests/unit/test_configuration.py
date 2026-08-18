@@ -64,6 +64,38 @@ def test_row_full_load_defaults_ok():
     assert row.date_field is None
 
 
+def test_row_table_name_defaults_to_entity_set():
+    row = RowConfiguration(service="S", entity_set="VoucherRowSet", load_type=LoadType.full_load)
+    assert row.output_table is None
+    assert row.table_name == "VoucherRowSet"
+
+
+def test_row_output_table_override_used_as_table_name():
+    row = RowConfiguration(
+        service="S",
+        entity_set="VoucherRowSet",
+        output_table="VoucherRowSet_decimals",
+        load_type=LoadType.full_load,
+    )
+    assert row.table_name == "VoucherRowSet_decimals"
+
+
+def test_row_output_table_blank_falls_back_to_entity_set():
+    row = RowConfiguration(service="S", entity_set="VoucherRowSet", output_table="  ", load_type=LoadType.full_load)
+    assert row.output_table is None
+    assert row.table_name == "VoucherRowSet"
+
+
+def test_row_output_table_invalid_chars_raise():
+    with pytest.raises(UserException):
+        RowConfiguration(
+            service="S",
+            entity_set="E",
+            output_table="bad name.with dots",
+            load_type=LoadType.full_load,
+        )
+
+
 def test_row_incremental_load_with_pk_ok():
     row = RowConfiguration(
         service="VoucherRowsAnalysis",

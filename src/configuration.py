@@ -5,6 +5,7 @@ is the per-table row config (one row -> one output table). Both wrap Pydantic
 ``ValidationError`` into ``UserException`` so a bad config exits 1, not 2.
 """
 
+import re
 from enum import StrEnum
 from typing import Self
 
@@ -71,6 +72,7 @@ class RowConfiguration(BaseModel):
 
     service: str
     entity_set: str
+    output_table: str | None = None
     columns: list[str] = []
     primary_key: list[str] = []
     date_field: str | None = None
@@ -92,10 +94,28 @@ class RowConfiguration(BaseModel):
     def incremental(self) -> bool:
         return self.load_type == LoadType.incremental_load
 
+    @property
+    def table_name(self) -> str:
+        """Destination Storage table name.
+
+        Defaults to the entity set. An explicit ``output_table`` override lets
+        several rows extract the *same* entity set into distinct tables (e.g. a
+        different column subset or date window per table); without it every such
+        row would target one table and collide on schema.
+        """
+        return self.output_table.strip() if self.output_table else self.entity_set
+
     @model_validator(mode="after")
     def _validate_requirements(self) -> Self:
         if self.load_type == LoadType.incremental_load and not self.primary_key:
             raise ValueError("primary_key is required when load_type is incremental_load")
         if (self.date_start or self.date_end) and not self.date_field:
             raise ValueError("date_field is required when date_start or date_end is set")
+        if self.output_table is not None:
+            stripped = self.output_table.strip()
+            self.output_table = stripped or None
+            if stripped and not re.fullmatch(r"[A-Za-z0-9_-]+", stripped):
+                raise ValueError(
+                    f"output_table may contain only letters, digits, '_' and '-' (got '{self.output_table}')"
+                )
         return self
