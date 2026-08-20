@@ -49,7 +49,7 @@ Configuration
 | `#client_secret` | IAM Client secret (encrypted). |
 | *Advanced* | Optional tuning: base path, page size, request timeout, max retries. |
 
-**Table (configuration row)**
+**Table (configuration row)** — the row form is grouped into **Source**, **Query**, **Date Window**, and **Load** sections:
 
 | Parameter | Description |
 |---|---|

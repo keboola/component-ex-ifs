@@ -25,6 +25,30 @@ def _wrap_validation_error(exc: ValidationError) -> UserException:
     return UserException("Validation Error: " + ", ".join(messages))
 
 
+# The row form groups fields into named UI sections (see configRowSchema.json).
+# The UI saves each section as a nested object under these keys; the component
+# works with a single flat field set, so section contents are merged back up.
+_ROW_SECTION_KEYS = ("source", "query", "date_window", "load")
+
+
+def flatten_row_params(params: dict) -> dict:
+    """Merge the row form's nested UI sections back into flat fields.
+
+    Backward-compatible in both directions: a legacy flat config (no section
+    keys) passes through unchanged, and a sectioned config has its
+    ``source`` / ``query`` / ``date_window`` / ``load`` sub-objects lifted to the
+    top level. The section wrappers themselves are dropped.
+    """
+    if not isinstance(params, dict):
+        return params
+    flat = {k: v for k, v in params.items() if k not in _ROW_SECTION_KEYS}
+    for section in _ROW_SECTION_KEYS:
+        sub = params.get(section)
+        if isinstance(sub, dict):
+            flat.update(sub)
+    return flat
+
+
 class AdvancedConfig(BaseModel):
     """Optional tuning fields rendered as a collapsible Advanced section."""
 
@@ -88,6 +112,12 @@ class RowConfiguration(BaseModel):
             super().__init__(**data)
         except ValidationError as exc:
             raise _wrap_validation_error(exc) from exc
+
+    @model_validator(mode="before")
+    @classmethod
+    def _flatten_sections(cls, data: object) -> object:
+        """Accept both the sectioned UI shape and a legacy flat config."""
+        return flatten_row_params(data) if isinstance(data, dict) else data
 
     @computed_field
     @property

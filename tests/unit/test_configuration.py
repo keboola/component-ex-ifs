@@ -1,7 +1,7 @@
 import pytest
 from keboola.component.exceptions import UserException
 
-from configuration import Configuration, LoadType, RowConfiguration
+from configuration import Configuration, LoadType, RowConfiguration, flatten_row_params
 
 
 def test_root_config_parses_and_derives_host():
@@ -93,6 +93,57 @@ def test_row_output_table_invalid_chars_raise():
             entity_set="E",
             output_table="bad name.with dots",
             load_type=LoadType.full_load,
+        )
+
+
+def test_flatten_row_params_lifts_sections():
+    nested = {
+        "source": {"service": "S", "entity_set": "E", "output_table": "T"},
+        "query": {"columns": ["A", "B"], "filter": "X eq 1", "order_by": "A desc"},
+        "date_window": {"date_field": "D", "date_start": "2024-01-01", "date_end": "2024-02-01"},
+        "load": {"load_type": "full_load", "keep_meta_fields": True},
+    }
+    flat = flatten_row_params(nested)
+    assert flat == {
+        "service": "S",
+        "entity_set": "E",
+        "output_table": "T",
+        "columns": ["A", "B"],
+        "filter": "X eq 1",
+        "order_by": "A desc",
+        "date_field": "D",
+        "date_start": "2024-01-01",
+        "date_end": "2024-02-01",
+        "load_type": "full_load",
+        "keep_meta_fields": True,
+    }
+
+
+def test_flatten_row_params_passthrough_flat():
+    flat = {"service": "S", "entity_set": "E", "load_type": "full_load"}
+    assert flatten_row_params(flat) == flat
+
+
+def test_row_parses_from_nested_sections():
+    row = RowConfiguration(
+        source={"service": "VoucherRowsAnalysis", "entity_set": "VoucherRowSet"},
+        query={"columns": ["Company", "Amount"]},
+        date_window={"date_field": "VoucherDate", "date_start": "2026-06-11", "date_end": "2026-06-12"},
+        load={"load_type": "incremental_load", "primary_key": ["Company"]},
+    )
+    assert row.service == "VoucherRowsAnalysis"
+    assert row.entity_set == "VoucherRowSet"
+    assert row.columns == ["Company", "Amount"]
+    assert row.date_field == "VoucherDate"
+    assert row.incremental is True
+    assert row.primary_key == ["Company"]
+
+
+def test_row_nested_incremental_without_pk_raises():
+    with pytest.raises(UserException):
+        RowConfiguration(
+            source={"service": "S", "entity_set": "E"},
+            load={"load_type": "incremental_load"},
         )
 
 

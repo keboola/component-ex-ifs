@@ -25,7 +25,7 @@ from client.auth import IfsAuthClient
 from client.metadata import EntityMeta, edm_to_base_type, parse_metadata, rank_incremental_fields
 from client.odata import IfsODataClient
 from client.schema import build_column_schema, format_filter_literal
-from configuration import Configuration, RowConfiguration
+from configuration import Configuration, RowConfiguration, flatten_row_params
 
 logger = logging.getLogger(__name__)
 
@@ -236,6 +236,10 @@ class Component(ComponentBase):
             self._config = Configuration(**(self.configuration.parameters or {}))
         return self._config
 
+    def _row_params(self) -> dict:
+        """Row parameters flattened from the UI's nested sections (see configRowSchema)."""
+        return flatten_row_params(self.configuration.parameters or {})
+
     def _parse_row(self) -> RowConfiguration:
         return RowConfiguration(**(self.configuration.parameters or {}))
 
@@ -382,7 +386,7 @@ class Component(ComponentBase):
     @sync_action("validate_query")
     def validate_query(self) -> ValidationResult:
         """Validate a row's assembled OData query with a cheap ``$top=1`` GET."""
-        params = self.configuration.parameters or {}
+        params = self._row_params()
         service = params.get("service")
         entity_set = params.get("entity_set")
         if self._client is None or not service or not entity_set:
@@ -413,7 +417,7 @@ class Component(ComponentBase):
     @sync_action("list_entitysets")
     def list_entitysets(self) -> list[SelectElement]:
         """Populate the entity-set dropdown from the service metadata."""
-        service = (self.configuration.parameters or {}).get("service")
+        service = self._row_params().get("service")
         if self._client is None or not service:
             return [self._guidance("Select a service first.")]
         entity_sets = parse_metadata(self.client.get_metadata(service))
@@ -451,7 +455,7 @@ class Component(ComponentBase):
     def _selected_entity_meta(self) -> EntityMeta | None:
         # Raw .get() (not a parsed RowConfiguration) is deliberate: discovery runs on
         # in-progress config where required row fields (entity_set, PK) aren't set yet.
-        params = self.configuration.parameters or {}
+        params = self._row_params()
         service = params.get("service")
         entity_set = params.get("entity_set")
         if self._client is None or not service or not entity_set:
