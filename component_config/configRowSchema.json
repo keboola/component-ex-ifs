@@ -190,7 +190,7 @@
           "default": "incremental_load",
           "propertyOrder": 2,
           "options": {
-            "grid_columns": 6,
+            "grid_columns": 12,
             "enum_titles": ["Full Load", "Incremental Load"],
             "tooltip": "Incremental load upserts rows by primary key; full load overwrites the destination table on every run."
           }
@@ -207,7 +207,7 @@
           },
           "propertyOrder": 3,
           "options": {
-            "grid_columns": 6,
+            "grid_columns": 12,
             "tooltip": "Required for Incremental Load — used to upsert and deduplicate rows in Storage.",
             "dependencies": {
               "load_type": "incremental_load"
