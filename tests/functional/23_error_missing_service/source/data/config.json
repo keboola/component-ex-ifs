@@ -1,0 +1,14 @@
+{
+  "action": "run",
+  "parameters": {
+    "tenant_id": "acme",
+    "realm": "acme1",
+    "client_id": "acme_client",
+    "#client_secret": "DUMMY_SECRET",
+    "entity_set": "VoucherRowSet",
+    "primary_key": [
+      "Company"
+    ],
+    "load_type": "full_load"
+  }
+}

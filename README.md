@@ -1,7 +1,6 @@
-ex-ifs
-=============
+# IFS Cloud Extractor (`keboola.ex-ifs`)
 
-Description
+A single, generic, config-driven Keboola extractor for **IFS Cloud OData v4 projection services**. Point it at an IFS Cloud tenant and extract any projection service / entity set as a Keboola table — one component, N configuration rows, no per-service code.
 
 **Table of Contents:**
 
@@ -10,75 +9,90 @@ Description
 Functionality Notes
 ===================
 
+IFS Cloud exposes thousands of OData v4 projection services. This component connects to a tenant and, per configuration row, extracts one projection entity set into one Keboola table. It discovers services, entity sets, columns, and keys live from the tenant's OData metadata (EDMX `$metadata`), maps OData EDM types to Keboola native (authoritative) data types, follows server-driven paging, and supports full or incremental loads.
+
 Prerequisites
 =============
 
-Ensure you have the necessary API token, register the application, etc.
+Access is provisioned **inside IFS** by an administrator — none of this is component configuration:
+
+1. In **IFS Solution Manager → Users and Permissions → Identity and Access Manager → IAM Client**, create a confidential IAM Client: set a Client ID, uncheck **Public Client** (yields a Client Secret), and enable **Service Accounts** (turns on the `client_credentials` grant).
+2. Create the IFS Service User via the IAM Client's **Username** field (on save, IFS creates the service user with the correct directory identity).
+3. Grant the service user a read permission set — `IFSREADONLYSUPPORT` ("Read-Only Grants for all Projections") is sufficient for projection reads.
+4. Add the companies you intend to pull to the service user's **Allowed Companies** (data is company-scoped by row-level security; results are empty until at least one company is granted).
+
+Hand the component operator the Keycloak **realm**, the **Client ID**, the **Client Secret**, and the granted **company codes**.
 
 Features
 ========
 
-| **Feature**             | **Description**                               |
-|-------------------------|-----------------------------------------------|
-| Generic UI Form         | Dynamic UI form for easy configuration.       |
-| Row-Based Configuration | Allows structuring the configuration in rows. |
-| OAuth                   | OAuth authentication enabled.                 |
-| Incremental Loading     | Fetch data in new increments.                 |
-| Backfill Mode           | Supports seamless backfill setup.             |
-| Date Range Filter       | Specify the date range for data retrieval.    |
-
-Supported Endpoints
-===================
-
-If you need additional endpoints, please submit your request to
-[ideas.keboola.com](https://ideas.keboola.com/).
+| **Feature**              | **Description**                                                        |
+|--------------------------|------------------------------------------------------------------------|
+| Generic, config-driven   | Any projection service / entity set via configuration — no per-service code. |
+| Row-based configuration  | One configuration row → one output table.                              |
+| OAuth 2.0 (`client_credentials`) | Machine-to-machine auth against the tenant's Keycloak, with mid-run token refresh. |
+| Live schema discovery    | Services, entity sets, columns, keys, and date fields via sync actions. |
+| Native data types        | OData EDM → authoritative Keboola `schema` (decimal precision clamped to backend limits). |
+| Date window (stateless)  | Bound the fetch by a customer-chosen date field with an explicit Date Start / Date End; recomputed each run, no auto-advancing cursor — re-pull or backfill freely. |
+| Server-driven paging     | Follows `@odata.nextLink`, with a `$skip` fallback; streams rows (no full buffering). |
 
 Configuration
 =============
 
-Param 1
--------
-Details about parameter 1.
+**Connection (root configuration)**
 
-Param 2
--------
-Details about parameter 2.
+| Parameter | Description |
+|---|---|
+| `tenant_id` | IFS Cloud tenant; the host resolves to `{tenant_id}.ifs.cloud`. |
+| `realm` | Keycloak realm. |
+| `client_id` | Confidential IAM Client id. |
+| `#client_secret` | IAM Client secret (encrypted). |
+| *Advanced* | Optional tuning: base path, page size, request timeout, max retries. |
+
+**Table (configuration row)** — the row form is grouped into **Source**, **Query**, **Date Window**, and **Storage** sections:
+
+| Parameter | Description |
+|---|---|
+| `service` | Projection service (pick from the live catalog or type a custom service name). |
+| `entity_set` | Entity set within the service. |
+| `output_table` | Optional destination table name (letters/digits/`_`/`-`). Defaults to the entity set; set it to extract the same entity set into more than one table without collision. |
+| `columns` | Optional `$select` — subset of columns (empty = all). |
+| `primary_key` | Primary key columns (required for incremental load). |
+| `date_field` | Date/timestamp column that Date Start / Date End filter on. |
+| `date_start` | Lower bound on the date field (`>=`). Relative (`5 days ago`, `today`) or absolute (`YYYY-MM-DD`). Empty = no lower bound. |
+| `date_end` | Upper bound on the date field (`<`), for moving windows or backfill batches. Empty = no upper bound. |
+| `load_type` | `full_load` or `incremental_load` (Keboola Storage write mode). |
+| `filter` | Optional additional OData `$filter` (ANDed with the Date window). |
+| `order_by` | Optional OData `$orderby`. |
+| `keep_meta_fields` | Keep the IFS meta-fields (`@odata.etag`, `luname`, `keyref`, `Objgrants`); off by default. |
+
+Sync actions (available in the UI): **Test Connection**, **Validate Query**, and dropdown loaders for services, entity sets, columns, primary keys, and date fields.
 
 Output
 ======
 
-Provides a list of tables, foreign keys, and schema.
+One table per configuration row, named after the entity set (or the `output_table` override), with an authoritative `schema` manifest (native base types and primary key). Incremental rows upsert on the primary key. Fetching is stateless — the Date window is recomputed from the configuration each run; component state records only the last run time and row count, never a data cursor.
 
 Development
 -----------
 
-To customize the local data folder path, replace the `CUSTOM_FOLDER` placeholder with your desired path in the `docker-compose.yml` file:
+Clone the repository, then build and run with Docker Compose:
 
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    volumes:
-      - ./:/code
-      - ./CUSTOM_FOLDER:/data
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-Clone this repository, initialize the workspace, and run the component using the following
-commands:
-
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-git clone  component-ex-ifs
+~~~~
+git clone https://github.com/keboola/component-ex-ifs
 cd component-ex-ifs
 docker-compose build
 docker-compose run --rm dev
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~
 
-Run the test suite and perform lint checks using this command:
+Run the test suite and lint checks:
 
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~
 docker-compose run --rm test
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~
 
 Integration
 ===========
 
 For details about deployment and integration with Keboola, refer to the
-[deployment section of the developer
-documentation](https://developers.keboola.com/extend/component/deployment/).
+[deployment section of the developer documentation](https://developers.keboola.com/extend/component/deployment/).

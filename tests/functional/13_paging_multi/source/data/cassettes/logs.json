@@ -1,0 +1,12 @@
+{
+  "exit_code": null,
+  "stderr": "",
+  "logs": [
+    {
+      "level": "INFO",
+      "logger": "__main__",
+      "message": "Extracted 142 rows from VoucherRowsAnalysis/VoucherRowSet.",
+      "timestamp": "2026-08-02T22:06:09.000Z"
+    }
+  ]
+}

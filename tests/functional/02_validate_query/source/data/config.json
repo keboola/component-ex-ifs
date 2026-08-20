@@ -1,0 +1,18 @@
+{
+  "action": "validate_query",
+  "parameters": {
+    "tenant_id": "acme",
+    "realm": "acme1",
+    "client_id": "acme_client",
+    "#client_secret": "DUMMY_SECRET",
+    "service_account": "svc_account",
+    "service": "VoucherRowsAnalysis",
+    "entity_set": "VoucherRowSet",
+    "columns": [
+      "Company",
+      "VoucherNo",
+      "RowNo",
+      "VoucherDate"
+    ]
+  }
+}

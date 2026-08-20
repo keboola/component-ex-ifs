@@ -1,1 +1,236 @@
-{}
+{
+  "type": "object",
+  "title": "Entity Extraction",
+  "required": ["source"],
+  "properties": {
+    "source": {
+      "type": "object",
+      "title": "Source",
+      "format": "grid-strict",
+      "propertyOrder": 10,
+      "required": ["service", "entity_set"],
+      "options": {
+        "tooltip": "The IFS projection service and entity set to extract, and the destination table name."
+      },
+      "properties": {
+        "service": {
+          "type": "string",
+          "title": "Service",
+          "description": "IFS projection service name",
+          "format": "select",
+          "enum": [],
+          "propertyOrder": 1,
+          "options": {
+            "grid_columns": 6,
+            "tooltip": "Standard or custom IFS projection service, e.g. `CustomerHandling`. Pick from the catalog or type a custom/uncatalogued service name.",
+            "creatable": true,
+            "async": {
+              "label": "Load Services",
+              "action": "list_services",
+              "autoload": true
+            }
+          }
+        },
+        "entity_set": {
+          "type": "string",
+          "title": "Entity Set",
+          "description": "Entity set to extract from the service",
+          "format": "select",
+          "enum": [],
+          "propertyOrder": 2,
+          "options": {
+            "grid_columns": 6,
+            "tooltip": "The collection within the projection service whose records become this table's rows. Each row extracts one entity set into one table — add another row for another entity set.",
+            "async": {
+              "label": "Load Entity Sets",
+              "action": "list_entitysets",
+              "autoload": ["parameters.source.service"]
+            }
+          }
+        }
+      }
+    },
+    "query": {
+      "type": "object",
+      "title": "Query",
+      "format": "grid-strict",
+      "propertyOrder": 20,
+      "options": {
+        "tooltip": "Optional server-side shaping: which columns to select, an OData `$filter`, and ordering."
+      },
+      "properties": {
+        "columns": {
+          "type": "array",
+          "title": "Columns",
+          "description": "Columns to select, leave empty for all",
+          "format": "select",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "enum": []
+          },
+          "propertyOrder": 1,
+          "options": {
+            "grid_columns": 12,
+            "tooltip": "OData `$select`. Leave empty to fetch all columns.",
+            "async": {
+              "label": "Load Columns",
+              "action": "list_columns",
+              "autoload": ["parameters.source.service", "parameters.source.entity_set"]
+            }
+          }
+        },
+        "filter": {
+          "type": "string",
+          "title": "Filter",
+          "description": "OData filter expression",
+          "propertyOrder": 2,
+          "options": {
+            "grid_columns": 12,
+            "tooltip": "Additional OData `$filter` expression, combined (AND) with the Date window bounds. Chain conditions with `and`/`or`, e.g. `Company eq '100' and EntryDate gt 2024-01-01`."
+          }
+        },
+        "order_by": {
+          "type": "string",
+          "title": "Order By",
+          "description": "OData order-by expression",
+          "propertyOrder": 3,
+          "options": {
+            "grid_columns": 12,
+            "tooltip": "OData `$orderby` expression, e.g. `EntryDate desc`."
+          }
+        },
+        "validate_query": {
+          "type": "button",
+          "title": "Validate Query",
+          "format": "sync-action",
+          "propertyOrder": 4,
+          "options": {
+            "grid_columns": 12,
+            "async": {
+              "label": "Validate Query",
+              "action": "validate_query"
+            }
+          }
+        }
+      }
+    },
+    "date_window": {
+      "type": "object",
+      "title": "Date Window",
+      "format": "grid-strict",
+      "propertyOrder": 30,
+      "options": {
+        "tooltip": "Optional stateless date window: bound a chosen date field by a Start and End. Recomputed each run — re-pull or backfill freely."
+      },
+      "properties": {
+        "date_field": {
+          "type": "string",
+          "title": "Date Field",
+          "description": "Date field the window filters on",
+          "format": "select",
+          "enum": [],
+          "propertyOrder": 1,
+          "options": {
+            "grid_columns": 12,
+            "tooltip": "The date/timestamp column that Date Start and Date End filter on.",
+            "async": {
+              "label": "Load Date Fields",
+              "action": "list_date_fields",
+              "autoload": ["parameters.source.service", "parameters.source.entity_set"]
+            }
+          }
+        },
+        "date_start": {
+          "type": "string",
+          "title": "Date Start",
+          "description": "Lower bound on the Date Field",
+          "propertyOrder": 2,
+          "options": {
+            "grid_columns": 6,
+            "tooltip": "Lower bound on the Date Field (`>=`). Relative (`5 days ago`, `today`) or absolute (`YYYY-MM-DD`). Leave both dates empty to fetch everything."
+          }
+        },
+        "date_end": {
+          "type": "string",
+          "title": "Date End",
+          "description": "Upper bound on the Date Field",
+          "propertyOrder": 3,
+          "options": {
+            "grid_columns": 6,
+            "tooltip": "Upper bound on the Date Field (`<`). Use for moving windows (Start `5 days ago`, End `today`) or to split a large backfill into batches."
+          }
+        }
+      }
+    },
+    "load": {
+      "type": "object",
+      "title": "Storage",
+      "format": "grid-strict",
+      "propertyOrder": 40,
+      "options": {
+        "tooltip": "Where and how the extracted rows are written to Keboola Storage."
+      },
+      "properties": {
+        "output_table": {
+          "type": "string",
+          "title": "Storage Table Name",
+          "description": "Destination table name; defaults to the entity set",
+          "propertyOrder": 1,
+          "options": {
+            "grid_columns": 12,
+            "tooltip": "Optional. Leave empty to name the output table after the entity set. Set an explicit name to extract the same entity set into more than one table (e.g. a different column subset or date window per table) without them colliding. Letters, digits, `_` and `-` only."
+          }
+        },
+        "load_type": {
+          "type": "string",
+          "title": "Load Type",
+          "description": "Full or incremental load into Storage",
+          "enum": ["full_load", "incremental_load"],
+          "default": "incremental_load",
+          "propertyOrder": 2,
+          "options": {
+            "grid_columns": 12,
+            "enum_titles": ["Full Load", "Incremental Load"],
+            "tooltip": "Incremental load upserts rows by primary key; full load overwrites the destination table on every run."
+          }
+        },
+        "primary_key": {
+          "type": "array",
+          "title": "Primary Key",
+          "description": "Columns that uniquely identify each record",
+          "format": "select",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "enum": []
+          },
+          "propertyOrder": 3,
+          "options": {
+            "grid_columns": 12,
+            "tooltip": "Required for Incremental Load — used to upsert and deduplicate rows in Storage.",
+            "dependencies": {
+              "load_type": "incremental_load"
+            },
+            "async": {
+              "label": "Load Primary Keys",
+              "action": "list_primary_keys",
+              "autoload": ["parameters.source.service", "parameters.source.entity_set"]
+            }
+          }
+        },
+        "keep_meta_fields": {
+          "type": "boolean",
+          "title": "Keep Meta Fields",
+          "description": "Keep IFS metadata fields in the output",
+          "default": false,
+          "propertyOrder": 4,
+          "options": {
+            "grid_columns": 12,
+            "tooltip": "IFS OData responses include internal metadata fields, e.g. `@odata.etag`. Left disabled, they are stripped from the output table."
+          }
+        }
+      }
+    }
+  }
+}

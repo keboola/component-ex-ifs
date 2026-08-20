@@ -1,0 +1,8 @@
+{
+  "_metadata": {"freeze_time": "2026-08-02T21:53:15", "keboola_vcr_version": "0.7.0", "recorded_at": "2026-08-02T19:53:31.200067+00:00"},
+  "interactions": [
+    {"request": {"body": "grant_type=client_credentials&client_id=REDACTED&client_secret=REDACTED&scope=openid+microprofile-jwt", "headers": {"Accept": ["*/*"], "Content-Length": ["138"], "Content-Type": ["application/x-www-form-urlencoded"]}, "method": "POST", "uri": "https://acme.ifs.cloud/auth/realms/acme1/protocol/openid-connect/token"}, "response": {"body": {"string": "{\"access_token\": \"REDACTED\", \"expires_in\": 180, \"refresh_expires_in\": 1800, \"refresh_token\": \"REDACTED\", \"token_type\": \"Bearer\", \"id_token\": \"REDACTED\", \"not-before-policy\": 0, \"session_state\": \"598828d8-7a64-4f36-849a-cf7a0011c78c\", \"scope\": \"openid audience microprofile-jwt profile email\"}"}, "headers": {"Content-Length": ["3941"], "Content-Type": ["application/json"]}, "status": {"code": 200, "message": "OK"}}},
+    {"request": {"body": null, "headers": {"Accept": ["application/xml"]}, "method": "GET", "uri": "https://acme.ifs.cloud/main/ifsapplications/projection/v1/NoSuchServiceXyz.svc/$metadata"}, "response": {"body": {"string": "{\"error\": {\"code\": \"REDACTED\", \"message\": \"Metadata not found.\"}}"}, "headers": {"Content-Type": ["application/json"], "content-length": ["73"]}, "status": {"code": 404, "message": "Not Found"}}}
+  ],
+  "version": 1
+}
