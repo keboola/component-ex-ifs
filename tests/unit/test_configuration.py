@@ -129,7 +129,7 @@ def test_row_parses_from_nested_sections():
         source={"service": "VoucherRowsAnalysis", "entity_set": "VoucherRowSet"},
         query={"columns": ["Company", "Amount"]},
         date_window={"date_field": "VoucherDate", "date_start": "2026-06-11", "date_end": "2026-06-12"},
-        load={"load_type": "incremental_load", "primary_key": ["Company"]},
+        load={"output_table": "VoucherRowSet_slice", "load_type": "incremental_load", "primary_key": ["Company"]},
     )
     assert row.service == "VoucherRowsAnalysis"
     assert row.entity_set == "VoucherRowSet"
@@ -137,6 +137,9 @@ def test_row_parses_from_nested_sections():
     assert row.date_field == "VoucherDate"
     assert row.incremental is True
     assert row.primary_key == ["Company"]
+    # output_table lives in the Storage section but must still resolve as the table name
+    assert row.output_table == "VoucherRowSet_slice"
+    assert row.table_name == "VoucherRowSet_slice"
 
 
 def test_row_nested_incremental_without_pk_raises():
