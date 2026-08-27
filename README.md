@@ -2,10 +2,6 @@
 
 A single, generic, config-driven Keboola extractor for **IFS Cloud OData v4 projection services**. Point it at an IFS Cloud tenant and extract any projection service / entity set as a Keboola table — one component, N configuration rows, no per-service code.
 
-**Table of Contents:**
-
-[TOC]
-
 Functionality Notes
 ===================
 
@@ -74,7 +70,7 @@ Output
 One table per configuration row, named after the entity set (or the `output_table` override), with an authoritative `schema` manifest (native base types and primary key). Incremental rows upsert on the primary key. Fetching is stateless — the Date window is recomputed from the configuration each run; component state records only the last run time and row count, never a data cursor.
 
 Development
------------
+===========
 
 Clone the repository, then build and run with Docker Compose:
 
